@@ -138,6 +138,9 @@ if (ENABLE_BUNDLED_MSGPUCK)
     target_link_libraries(msgpack.test ${MSGPUCK_LIBRARIES})
 endif ()
 
+add_executable(compress.test compress.c core_test_utils.c)
+target_link_libraries(compress.test ${MSGPUCK_LIBRARIES} core unit)
+
 add_executable(scramble.test scramble.c core_test_utils.c)
 target_link_libraries(scramble.test scramble)
 

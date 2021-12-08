@@ -30,6 +30,10 @@ uint32_t
 tnt_mp_sizeof_error(const struct error *error);
 char *
 tnt_mp_encode_error(char *data, const struct error *error);
+uint32_t
+tnt_mp_sizeof_compress(const struct tt_compress *ttc);
+char *
+tnt_mp_encode_compress(char *data, const struct tt_compress *ttc);
 float
 tnt_mp_decode_float(const char **data);
 double
@@ -44,6 +48,8 @@ struct error *
 error_unpack_unsafe(const char **data);
 void
 error_unref(struct error *e);
+struct tt_compress *
+compress_unpack(const char **data, uint32_t len, struct tt_compress *ttc);
 ]])
 
 local strict_alignment = (jit.arch == 'arm')
@@ -148,6 +154,11 @@ end
 local function encode_uuid(buf, uuid)
     local p = buf:alloc(builtin.tnt_mp_sizeof_uuid())
     builtin.tnt_mp_encode_uuid(p, uuid)
+end
+
+local function encode_compress(buf, ttc)
+    local p = buf:alloc(builtin.tnt_mp_sizeof_compress(ttc))
+    builtin.mp_encode_compress(p, ttc)
 end
 
 local function encode_int(buf, num)
@@ -338,6 +349,7 @@ on_encode(ffi.typeof('double'), encode_double)
 on_encode(ffi.typeof('decimal_t'), encode_decimal)
 on_encode(ffi.typeof('struct tt_uuid'), encode_uuid)
 on_encode(ffi.typeof('const struct error &'), encode_error)
+on_encode(ffi.typeof('struct tt_compress'), encode_compress)
 
 --------------------------------------------------------------------------------
 -- Decoder
@@ -544,6 +556,12 @@ local ext_decoder = {
             err = ffi.gc(err, builtin.error_unref)
         end
         return err
+    end,
+    -- MP_COMPRESS
+    [4] = function(data, len)
+        local ttc = ffi.new("struct tt_compress")
+        builtin.compress_unpack(data, len, ttc)
+        return ttc
     end,
 }
 

@@ -35,6 +35,7 @@
 #include "msgpuck.h"
 #include "mp_decimal.h"
 #include "mp_uuid.h"
+#include "mp_compress.h"
 
 void
 mpstream_reserve_slow(struct mpstream *stream, size_t size)
@@ -206,6 +207,16 @@ mpstream_encode_uuid(struct mpstream *stream, const struct tt_uuid *uuid)
 		return;
 	char *pos = mp_encode_uuid(data, uuid);
 	mpstream_advance(stream, pos - data);
+}
+
+void
+mpstream_encode_compress(struct mpstream *stream, const struct tt_compress *ttc)
+{
+    char *data = mpstream_reserve(stream, mp_sizeof_compress(ttc));
+    if (data == NULL)
+        return;
+    char *pos = mp_encode_compress(data, ttc);
+    mpstream_advance(stream, pos - data);
 }
 
 void

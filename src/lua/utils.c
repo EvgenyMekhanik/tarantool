@@ -48,6 +48,7 @@ static uint32_t CTID_STRUCT_IBUF_PTR;
 uint32_t CTID_CHAR_PTR;
 uint32_t CTID_CONST_CHAR_PTR;
 uint32_t CTID_UUID;
+uint32_t CTID_COMPRESS;
 uint32_t CTID_DATETIME = 0;
 
 void *
@@ -119,6 +120,12 @@ luaL_pushuuidstr(struct lua_State *L, const struct tt_uuid *uuid)
 	char str[UUID_STR_LEN + 1];
 	tt_uuid_to_string(uuid, str);
 	lua_pushlstring(L, str, UUID_STR_LEN);
+}
+
+struct tt_compress *
+luaL_pushcompress(struct lua_State *L)
+{
+	return luaL_pushcdata(L, CTID_COMPRESS);
 }
 
 int
@@ -736,6 +743,16 @@ tarantool_lua_utils_init(struct lua_State *L)
 	(void) rc;
 	CTID_DATETIME = luaL_ctypeid(L, "struct datetime");
 	assert(CTID_DATETIME != 0);
+
+	rc = luaL_cdef(L, "struct tt_compress {"
+			  "char *data;"
+			  "char *data_end;"
+			  "enum compression_type type;"
+			  "};");
+	assert(rc == 0);
+	(void)rc;
+	CTID_COMPRESS = luaL_ctypeid(L, "struct tt_compress");
+	assert(CTID_COMPRESS != 0);
 
 	lua_pushcfunction(L, luaT_newthread_wrapper);
 	luaT_newthread_ref = luaL_ref(L, LUA_REGISTRYINDEX);

@@ -59,7 +59,7 @@ struct lua_State;
 struct ibuf;
 typedef struct ibuf box_ibuf_t;
 struct tt_uuid;
-struct datetime;
+struct tt_compress;
 
 /**
  * Single global lua_State shared by core and modules.
@@ -79,6 +79,9 @@ luaL_pushuuid(struct lua_State *L);
 
 void
 luaL_pushuuidstr(struct lua_State *L, const struct tt_uuid *uuid);
+
+struct tt_compress *
+luaL_pushcompress(struct lua_State *L);
 
 /** \cond public */
 
