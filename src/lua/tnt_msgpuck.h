@@ -44,7 +44,7 @@ extern "C" {
 #include "mp_decimal.h"
 #include "box/mp_error.h"
 #include "mp_uuid.h"
-#include "mp_compress.h"
+#include "mp_compression.h"
 
 char *
 tnt_mp_encode_decimal(char *data, const decimal_t *dec);
@@ -65,10 +65,10 @@ uint32_t
 tnt_mp_sizeof_error(const struct error *error);
 
 char *
-tnt_mp_encode_compress(char *data, const struct tt_compress *ttc);
+tnt_mp_encode_compression(char *data, const struct tt_compression *ttc);
 
-uint32_t
-tnt_mp_sizeof_compress(const struct tt_compress *ttc);
+int64_t
+tnt_mp_sizeof_for_compression(const struct tt_compression *ttc);
 
 #if defined(__cplusplus)
 } /* extern "C" */

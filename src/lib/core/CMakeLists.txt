@@ -34,9 +34,9 @@ set(core_sources
     iostream.c
     tt_uuid.c
     mp_uuid.c
-    tt_compress.c
+    tt_compression.c
     compression.c
-    mp_compress.c
+    mp_compression.c
 )
 
 if (TARGET_OS_NETBSD)

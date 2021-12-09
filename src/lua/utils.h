@@ -59,7 +59,7 @@ struct lua_State;
 struct ibuf;
 typedef struct ibuf box_ibuf_t;
 struct tt_uuid;
-struct tt_compress;
+struct tt_compression;
 
 /**
  * Single global lua_State shared by core and modules.
@@ -72,6 +72,7 @@ extern struct lua_State *tarantool_L;
 extern uint32_t CTID_CHAR_PTR;
 extern uint32_t CTID_CONST_CHAR_PTR;
 extern uint32_t CTID_UUID;
+extern uint32_t CTID_COMPRESSION;
 extern uint32_t CTID_DATETIME;
 
 struct tt_uuid *
@@ -80,8 +81,8 @@ luaL_pushuuid(struct lua_State *L);
 void
 luaL_pushuuidstr(struct lua_State *L, const struct tt_uuid *uuid);
 
-struct tt_compress *
-luaL_pushcompress(struct lua_State *L);
+struct tt_compression *
+luaL_pushcompression(struct lua_State *L);
 
 /** \cond public */
 

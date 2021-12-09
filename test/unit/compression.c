@@ -4,7 +4,7 @@
  * Copyright 2021, Tarantool AUTHORS, please see AUTHORS file.
  */
 
-#include "mp_compress.h"
+#include "mp_compression.h"
 #include "msgpuck.h"
 #include "mp_extension_types.h"
 #include "mp_uuid.h"
@@ -128,7 +128,7 @@ mp_encode_random_field(char *data, enum mp_type type)
 }
 
 int
-check_mp_compress(enum compression_type type)
+check_mp_compression(int type)
 {
 	/** MP_ARRAY header max size */
 	size_t total_size = 5;
@@ -146,13 +146,13 @@ check_mp_compress(enum compression_type type)
 	assert(size == field_count);
 	size_t total_size_save = data_end - data;
 	total_size = 5;
-	struct tt_compress ttc;
+	struct tt_compression ttc;
 	ttc.type = type;
 	for (uint32_t i = 0; i < size; i++) {
 		ttc.data = (char *)d;
 		mp_next(&d);
-		ttc.data_end = (char *)d;
-		total_size += mp_sizeof_compress(&ttc);
+		ttc.size = d - ttc.data;
+		total_size += mp_sizeof_for_compression(&ttc);
 	}
 	d = data;
 	mp_decode_array(&d);
@@ -162,8 +162,8 @@ check_mp_compress(enum compression_type type)
 	for (uint32_t i = 0; i < field_count; i++) {
 		ttc.data = (char *)d;
 		mp_next(&d);
-		ttc.data_end = (char *)d;
-		cdata_end = mp_encode_compress(cdata_end, &ttc);
+		ttc.size = (char *)d - ttc.data;
+		cdata_end = mp_encode_compression(cdata_end, &ttc);
 		isnt(cdata_end, NULL, "mp_compress");
 	}
 	d = cdata;
@@ -172,10 +172,14 @@ check_mp_compress(enum compression_type type)
 	char *ddata_end = ddata;
 	ddata_end = mp_encode_array(ddata_end, field_count);
 	for (uint32_t i = 0; i < field_count; i++) {
-		isnt(mp_decode_compress(&d, &ttc), NULL, "mp_decompress");
+		int64_t size = mp_sizeof_for_decompression(&d);
+		char *tmp = xmalloc(size);
+		ttc.data = tmp;
+		isnt(mp_decode_compression(&d, &ttc), NULL, "mp_decompress");
 		is(ttc.type, type, "compression type");
-		memcpy(ddata_end, ttc.data, ttc.data_end - ttc.data);
-		ddata_end += ttc.data_end - ttc.data;
+		memcpy(ddata_end, ttc.data, ttc.size);
+		ddata_end += ttc.size;
+		free(tmp);
 	}
 	assert(ddata_end == ddata + total_size_save);
 	int rc = memcmp(data, ddata, total_size_save);
@@ -193,8 +197,8 @@ main(void)
         fiber_init(fiber_c_invoke);
         random_init();
 
-	check_mp_compress(COMPRESSION_TYPE_NONE);
-	check_mp_compress(COMPRESSION_TYPE_ZSTD5);
+	check_mp_compression(COMPRESSION_TYPE_NONE);
+	check_mp_compression(COMPRESSION_TYPE_ZSTD5);
 
 	return check_plan();
 }

@@ -5,34 +5,34 @@
  * Copyright 2021, Tarantool AUTHORS, please see AUTHORS file.
  */
 
-#include <stddef.h>
 #include <stdint.h>
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-size_t
-none_compress_size(const char *data, const char *data_end);
+int64_t
+none_compressed_data_size(const uint32_t data_size);
 
 int
-none_compress(const char *data, const char *data_end, char *new_data,
-              size_t *new_data_size);
+none_compress_data(const char *data, const uint32_t data_size,
+                   char *new_data, uint32_t *new_data_size);
 
 int
-none_decompress(const char **data, uint32_t len, char **new_data,
-                char **new_data_end);
+none_decompress_data(const char **data, const uint32_t data_size,
+                     char *new_data);
 
-size_t
-zstd_compress_size(const char *data, const char *data_end, int level);
-
-int
-zstd_compress(const char *data, const char *data_end, char *new_data,
-              size_t *new_data_size, int level);
+int64_t
+zstd_compressed_data_size(const char *data, const uint32_t data_size,
+                          int level);
 
 int
-zstd_decompress(const char **data, uint32_t len, char **new_data,
-                char **new_data_end);
+zstd_compress_data(const char *data, const uint32_t data_size, char *new_data,
+                   uint32_t *new_data_size, int level);
+
+int
+zstd_decompress_data(const char **data, const uint32_t data_size,
+                     char *new_data);
 
 #if defined(__cplusplus)
 } /* extern "C" */

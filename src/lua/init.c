@@ -130,7 +130,8 @@ extern char strict_lua[],
 	process_lua[],
 	humanize_lua[],
 	memprof_lua[],
-	datetime_lua[]
+	datetime_lua[],
+	compression_lua[]
 ;
 
 static const char *lua_modules[] = {
@@ -186,6 +187,7 @@ static const char *lua_modules[] = {
 	"memprof.humanize", humanize_lua,
 	"memprof", memprof_lua,
 	"datetime", datetime_lua,
+	"compression", compression_lua,
 	NULL
 };
 

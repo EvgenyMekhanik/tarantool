@@ -1,5 +1,10 @@
 local ffi = require('ffi')
 local msgpack = require('msgpack')
+local decimal = require('decimal')
+local uuid = require('uuid')
+local math = require('math')
+local buffer = require('buffer')
+local compression = require('compression')
 
 local function rt(test, s, x, t)
     local buf1 = s.encode(x)
@@ -193,7 +198,6 @@ local function test_double(test, s)
 end
 
 local function test_decimal(test, s)
-    local decimal = require('decimal')
     test:plan(10)
 
     rt(test, s, decimal.new(1), 'cdata')
@@ -204,7 +208,6 @@ local function test_decimal(test, s)
 end
 
 local function test_uuid(test, s)
-    local uuid = require('uuid')
     test:plan(2)
 
     rt(test, s, uuid.new(), 'cdata')
@@ -521,6 +524,34 @@ local function test_error(test, s)
     }
 end
 
+local function test_compression(test, s)
+    local compression_type = {0, 1}
+    local msgpack_data = {
+        math.random(0, 1000),
+        math.random(-1000, 0),
+        ffi.new('float', 12.121),
+        ffi.new('double', 12.121),
+        decimal.new('1e37'),
+        uuid.new(),
+        string.rep(math.random(1, 255), 100),
+        ffi.new('bool', true),
+        {1, 2, 3},
+        {k1 = "v1", k2 = "v2", k3 = "v3"},
+        box.error.new(box.error.ILLEGAL_PARAMS, 'test')
+    }
+    test:plan(#compression_type * #msgpack_data)
+
+    for _, type in ipairs(compression_type) do
+        for _, data in ipairs(msgpack_data) do
+            local ibuf = buffer.ibuf()
+            local size = msgpack.encode(data, ibuf)
+            local ttc = compression.new(ibuf.rpos, size, type)
+            local enc = s.encode(ttc)
+            local dec = s.decode(ttc)
+        end
+    end
+end
+
 return {
     test_unsigned = test_unsigned;
     test_signed = test_signed;
@@ -535,4 +566,5 @@ return {
     test_depth = test_depth;
     test_decode_buffer = test_decode_buffer;
     test_error = test_error;
+    test_compression = test_compression
 }

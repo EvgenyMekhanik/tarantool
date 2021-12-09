@@ -712,6 +712,10 @@ static int dump_node(struct lua_yaml_dumper *dumper)
          str = field.errorval->errmsg;
          len = strlen(str);
          break;
+      case MP_COMPRESSION:
+         fprintf(stderr, "TUTA!!!!!!!!\n");
+         /** TODO */
+         break;
       default:
          assert(0); /* checked by luaL_checkfield() */
       }

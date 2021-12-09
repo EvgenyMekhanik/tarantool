@@ -35,7 +35,7 @@
 #include "mp_decimal.h"
 #include "mp_error.h"
 #include "mp_uuid.h"
-#include "mp_compress.h"
+#include "mp_compression.h"
 
 static int
 msgpack_fprint_ext(FILE *file, const char **data, int depth)
@@ -50,10 +50,8 @@ msgpack_fprint_ext(FILE *file, const char **data, int depth)
 		return mp_fprint_uuid(file, data, len);
 	case MP_ERROR:
 		return mp_fprint_error(file, data, depth);
-#if 0
-	case MP_COMPRESS:
-		return mp_fprint_compress(file, data, len);
-#endif
+	case MP_COMPRESSION:
+		return mp_fprint_compression(file, data, len);
 	default:
 		return mp_fprint_ext_default(file, orig, depth);
 	}
@@ -72,10 +70,8 @@ msgpack_snprint_ext(char *buf, int size, const char **data, int depth)
 		return mp_snprint_uuid(buf, size, data, len);
 	case MP_ERROR:
 		return mp_snprint_error(buf, size, data, depth);
-#if 0
-	case MP_COMPRESS:
-		return mp_snprint_compress(buf, size, data, len);
-#endif
+	case MP_COMPRESSION:
+		return mp_snprint_compression(buf, size, data, len);
 	default:
 		return mp_snprint_ext_default(buf, size, orig, depth);
 	}

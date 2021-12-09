@@ -99,13 +99,13 @@ tnt_mp_sizeof_error(const struct error *error)
 }
 
 char *
-tnt_mp_encode_compress(char *data, const struct tt_compress *ttc)
+tnt_mp_encode_compression(char *data, const struct tt_compression *ttc)
 {
-        return mp_encode_compress(data, ttc);
+        return mp_encode_compression(data, ttc);
 }
 
-uint32_t
-tnt_mp_sizeof_compress(const struct tt_compress *ttc)
+int64_t
+tnt_mp_sizeof_for_compression(const struct tt_compression *ttc)
 {
-        return mp_sizeof_compress(ttc);
+        return mp_sizeof_for_compression(ttc);
 }
