@@ -239,6 +239,13 @@ public:
 	virtual void raise() { throw this; }
 };
 
+class CompressionError: public Exception {
+public:
+	CompressionError(const char *file, unsigned line,
+			 const char *format, ...);
+	virtual void raise() { throw this; }
+};
+
 /**
  * Initialize the exception subsystem.
  */

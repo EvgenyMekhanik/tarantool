@@ -436,6 +436,8 @@ struct error *
 BuildCryptoError(const char *file, unsigned line, const char *format, ...);
 struct error *
 BuildRaftError(const char *file, unsigned line, const char *format, ...);
+struct error *
+BuildCompressionError(const char *file, unsigned line, const char *format, ...);
 
 struct index_def;
 

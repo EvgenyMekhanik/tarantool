@@ -97,3 +97,22 @@ tnt_mp_sizeof_error(const struct error *error)
 {
 	return mp_sizeof_error(error);
 }
+
+char *
+tnt_mp_encode_compression(char *data, const struct tt_compression *ttc)
+{
+        return mp_encode_compression(data, ttc);
+}
+
+int
+tnt_mp_sizeof_for_compression(const struct tt_compression *ttc,
+                              uint32_t *size)
+{
+        return mp_sizeof_for_compression(ttc, size);
+}
+
+int
+tnt_mp_decode_compression(const char **data, struct tt_compression *ttc)
+{
+        return mp_decode_compression(data, ttc);
+}

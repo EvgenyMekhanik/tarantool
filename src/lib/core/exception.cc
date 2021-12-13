@@ -283,6 +283,19 @@ RaftError::RaftError(const char *file, unsigned line, const char *format, ...)
 	va_end(ap);
 }
 
+const struct type_info type_CompressionError =
+	make_type("CompressionError", &type_Exception);
+
+CompressionError::CompressionError(const char *file, unsigned line,
+				   const char *format, ...)
+	: Exception(&type_CompressionError, file, line)
+{
+	va_list ap;
+	va_start(ap, format);
+	error_vformat_msg(this, format, ap);
+	va_end(ap);
+}
+
 #define BuildAlloc(type)				\
 	void *p = malloc(sizeof(type));			\
 	if (p == NULL)					\
@@ -407,6 +420,18 @@ BuildRaftError(const char *file, unsigned line, const char *format, ...)
 {
 	BuildAlloc(RaftError);
 	RaftError *e =  new (p) RaftError(file, line, "");
+	va_list ap;
+	va_start(ap, format);
+	error_vformat_msg(e, format, ap);
+	va_end(ap);
+	return e;
+}
+
+struct error *
+BuildCompressionError(const char *file, unsigned line, const char *format, ...)
+{
+	BuildAlloc(CompressionError);
+	CompressionError *e =  new (p) CompressionError(file, line, "");
 	va_list ap;
 	va_start(ap, format);
 	error_vformat_msg(e, format, ap);
