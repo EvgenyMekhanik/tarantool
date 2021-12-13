@@ -35,6 +35,8 @@
 #include "msgpuck.h"
 #include "mp_decimal.h"
 #include "mp_uuid.h"
+#include "mp_compression.h"
+#include "fiber.h"
 
 void
 mpstream_reserve_slow(struct mpstream *stream, size_t size)
@@ -206,6 +208,26 @@ mpstream_encode_uuid(struct mpstream *stream, const struct tt_uuid *uuid)
 		return;
 	char *pos = mp_encode_uuid(data, uuid);
 	mpstream_advance(stream, pos - data);
+}
+
+void
+mpstream_encode_compression(struct mpstream *stream,
+                            const struct tt_compression *ttc)
+{
+    uint32_t used = region_used(&fiber()->gc);
+    char *tmp = region_alloc(&fiber()->gc, mp_sizeof_compression_max(ttc));
+    if (tmp == NULL)
+        return;
+    char *tmp_end = mp_encode_compression(tmp, ttc);
+    if (tmp_end == NULL)
+        goto finish;
+    char *data = mpstream_reserve(stream, tmp_end - tmp);
+    if (data == NULL)
+        goto finish;
+    memcpy(data, tmp, tmp_end - tmp);
+    mpstream_advance(stream, tmp_end - tmp);
+finish:
+    region_truncate(&fiber()->gc, used);
 }
 
 void

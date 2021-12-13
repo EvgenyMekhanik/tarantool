@@ -2,6 +2,7 @@
 
 local ffi = require('ffi')
 local buffer = require('buffer')
+local compression = require('compression')
 local builtin = ffi.C
 local msgpack = require('msgpack') -- .NULL, .array_mt, .map_mt, .cfg
 local int8_ptr_t = ffi.typeof('int8_t *')
@@ -30,6 +31,10 @@ uint32_t
 tnt_mp_sizeof_error(const struct error *error);
 char *
 tnt_mp_encode_error(char *data, const struct error *error);
+int
+tnt_mp_sizeof_compression_max(const struct tt_compression *ttc);
+char *
+tnt_mp_encode_compression(char *data, const struct tt_compression *ttc);
 float
 tnt_mp_decode_float(const char **data);
 double
@@ -44,6 +49,9 @@ struct error *
 error_unpack_unsafe(const char **data);
 void
 error_unref(struct error *e);
+int
+compression_unpack(const char **data, uint32_t len,
+                   struct tt_compression *ttc);
 ]])
 
 local strict_alignment = (jit.arch == 'arm')
@@ -148,6 +156,20 @@ end
 local function encode_uuid(buf, uuid)
     local p = buf:alloc(builtin.tnt_mp_sizeof_uuid())
     builtin.tnt_mp_encode_uuid(p, uuid)
+end
+
+local function encode_compression()
+    local tmpbuf = buffer.ibuf()
+    return function(buf, ttc)
+        local tmp = tmpbuf:reserve(builtin.tnt_mp_sizeof_compression_max(ttc))
+        local tmp_end = builtin.tnt_mp_encode_compression(tmp, ttc)
+        if not tmp_end then
+            error("Failed to encode compression")
+        end
+        local p = buf:alloc(tmp_end - tmp)
+        ffi.copy(p, tmp, tmp_end - tmp)
+        tmpbuf:reset()
+    end
 end
 
 local function encode_int(buf, num)
@@ -338,6 +360,7 @@ on_encode(ffi.typeof('double'), encode_double)
 on_encode(ffi.typeof('decimal_t'), encode_decimal)
 on_encode(ffi.typeof('struct tt_uuid'), encode_uuid)
 on_encode(ffi.typeof('const struct error &'), encode_error)
+on_encode(ffi.typeof('struct tt_compression &'), encode_compression())
 
 --------------------------------------------------------------------------------
 -- Decoder
@@ -544,6 +567,14 @@ local ext_decoder = {
             err = ffi.gc(err, builtin.error_unref)
         end
         return err
+    end,
+    -- MP_COMPRESSION
+    [4] = function(data, len)
+        local ttc = compression.new()
+        if builtin.compression_unpack(data, len, ttc) ~= 0 then
+            error("Failed to decode compression")
+        end
+        return ttc
     end,
 }
 

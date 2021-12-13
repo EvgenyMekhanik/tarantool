@@ -1,0 +1,321 @@
+1..2
+    1..70
+    ok 1 - init compression structure
+    ok 2 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 3 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 4 - subtests
+    ok 5 - decompression
+    ok 6 - compression/decompression
+    ok 7 - init compression structure
+    ok 8 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 9 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 10 - subtests
+    ok 11 - decompression
+    ok 12 - compression/decompression
+    ok 13 - init compression structure
+    ok 14 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 15 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 16 - subtests
+    ok 17 - decompression
+    ok 18 - compression/decompression
+    ok 19 - init compression structure
+    ok 20 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 21 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 22 - subtests
+    ok 23 - decompression
+    ok 24 - compression/decompression
+    ok 25 - init compression structure
+    ok 26 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 27 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 28 - subtests
+    ok 29 - decompression
+    ok 30 - compression/decompression
+    ok 31 - init compression structure
+    ok 32 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 33 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 34 - subtests
+    ok 35 - decompression
+    ok 36 - compression/decompression
+    ok 37 - init compression structure
+    ok 38 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 39 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 40 - subtests
+    ok 41 - decompression
+    ok 42 - compression/decompression
+    ok 43 - init compression structure
+    ok 44 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 45 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 46 - subtests
+    ok 47 - decompression
+    ok 48 - compression/decompression
+    ok 49 - init compression structure
+    ok 50 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 51 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 52 - subtests
+    ok 53 - decompression
+    ok 54 - compression/decompression
+    ok 55 - init compression structure
+    ok 56 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 57 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 58 - subtests
+    ok 59 - decompression
+    ok 60 - compression/decompression
+    ok 61 - init compression structure
+    ok 62 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 63 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 64 - subtests
+    ok 65 - decompression
+    ok 66 - compression/decompression
+    ok 67 - init compression structure fail
+    ok 68 - init compression structure fail
+    ok 69 - init compression structure
+    ok 70 - compression fail
+ok 1 - subtests
+    1..70
+    ok 1 - init compression structure
+    ok 2 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 3 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 4 - subtests
+    ok 5 - decompression
+    ok 6 - compression/decompression
+    ok 7 - init compression structure
+    ok 8 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 9 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 10 - subtests
+    ok 11 - decompression
+    ok 12 - compression/decompression
+    ok 13 - init compression structure
+    ok 14 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 15 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 16 - subtests
+    ok 17 - decompression
+    ok 18 - compression/decompression
+    ok 19 - init compression structure
+    ok 20 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 21 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 22 - subtests
+    ok 23 - decompression
+    ok 24 - compression/decompression
+    ok 25 - init compression structure
+    ok 26 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 27 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 28 - subtests
+    ok 29 - decompression
+    ok 30 - compression/decompression
+    ok 31 - init compression structure
+    ok 32 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 33 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 34 - subtests
+    ok 35 - decompression
+    ok 36 - compression/decompression
+    ok 37 - init compression structure
+    ok 38 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 39 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 40 - subtests
+    ok 41 - decompression
+    ok 42 - compression/decompression
+    ok 43 - init compression structure
+    ok 44 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 45 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 46 - subtests
+    ok 47 - decompression
+    ok 48 - compression/decompression
+    ok 49 - init compression structure
+    ok 50 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 51 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 52 - subtests
+    ok 53 - decompression
+    ok 54 - compression/decompression
+    ok 55 - init compression structure
+    ok 56 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 57 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 58 - subtests
+    ok 59 - decompression
+    ok 60 - compression/decompression
+    ok 61 - init compression structure
+    ok 62 - compression
+        1..3
+        ok 1 - string representation size
+        ok 2 - string representation
+        ok 3 - string representation
+    ok 63 - subtests
+        1..3
+        ok 1 - file representation size
+        ok 2 - file representation
+        ok 3 - string representation
+    ok 64 - subtests
+    ok 65 - decompression
+    ok 66 - compression/decompression
+    ok 67 - init compression structure fail
+    ok 68 - init compression structure fail
+    ok 69 - init compression structure
+    ok 70 - compression fail
+ok 2 - subtests
