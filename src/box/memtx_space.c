@@ -43,6 +43,8 @@
 #include "memtx_engine.h"
 #include "column_mask.h"
 #include "sequence.h"
+#include "msgpack_compression.h"
+#include <small/region.h>
 
 /*
  * Yield every 1K tuples while building a new index or checking
@@ -336,9 +338,18 @@ memtx_space_execute_replace(struct space *space, struct txn *txn,
 	struct memtx_space *memtx_space = (struct memtx_space *)space;
 	struct txn_stmt *stmt = txn_current_stmt(txn);
 	enum dup_replace_mode mode = dup_replace_mode(request->type);
+	char *data, *data_end;
+	uint32_t used = region_used(&fiber()->gc);
+	if (msgpack_compress_fields(space, request->tuple, request->tuple_end,
+				    &data, &data_end) != 0) {
+		region_truncate(&fiber()->gc, used);
+		diag_set(ClientError, ER_SYSTEM,
+			 "Failed to compress msgpack during replace");
+		return -1;
+	}
 	stmt->new_tuple =
-		space->format->vtab.tuple_new(space->format, request->tuple,
-					      request->tuple_end);
+		space->format->vtab.tuple_new(space->format, data, data_end);
+	region_truncate(&fiber()->gc, used);
 	if (stmt->new_tuple == NULL)
 		return -1;
 	tuple_ref(stmt->new_tuple);
@@ -352,6 +363,7 @@ memtx_space_execute_replace(struct space *space, struct txn *txn,
 	stmt->engine_savepoint = stmt;
 	/** The new tuple is referenced by the primary key. */
 	*result = stmt->new_tuple;
+
 	return 0;
 }
 
@@ -415,16 +427,36 @@ memtx_space_execute_update(struct space *space, struct txn *txn,
 	uint32_t new_size = 0, bsize;
 	struct tuple_format *format = space->format;
 	const char *old_data = tuple_data_range(old_tuple, &bsize);
+	char *tmp_data, *tmp_data_end;
+	uint32_t used = region_used(&fiber()->gc);
+	if (msgpack_decompress_fields(old_data, old_data + bsize,
+				      &tmp_data, &tmp_data_end) != 0) {
+		region_truncate(&fiber()->gc, used);
+		diag_set(ClientError, ER_SYSTEM,
+			 "Failed to decompress during update");
+		return -1;
+	}
 	const char *new_data =
 		xrow_update_execute(request->tuple, request->tuple_end,
-				    old_data, old_data + bsize, format,
+				    tmp_data , tmp_data_end, format,
 				    &new_size, request->index_base, NULL);
-	if (new_data == NULL)
+	if (new_data == NULL) {
+		region_truncate(&fiber()->gc, used);
 		return -1;
+	}
+
+	if (msgpack_compress_fields(space, new_data, new_data + new_size,
+				    &tmp_data, &tmp_data_end) != 0) {
+		region_truncate(&fiber()->gc, used);
+		diag_set(ClientError, ER_SYSTEM,
+			 "Failed to compress msgpack during replace");
+		return -1;
+	}
 
 	stmt->new_tuple =
-		space->format->vtab.tuple_new(format, new_data,
-					      new_data + new_size);
+		space->format->vtab.tuple_new(format, tmp_data,
+					      tmp_data_end);
+	region_truncate(&fiber()->gc, used);
 	if (stmt->new_tuple == NULL)
 		return -1;
 	tuple_ref(stmt->new_tuple);
@@ -472,6 +504,8 @@ memtx_space_execute_upsert(struct space *space, struct txn *txn,
 	if (index_get(index, key, part_count, &old_tuple) != 0)
 		return -1;
 
+	uint32_t used;
+	char *tmp_data, *tmp_data_end;
 	struct tuple_format *format = space->format;
 	if (old_tuple == NULL) {
 		/**
@@ -494,15 +528,33 @@ memtx_space_execute_upsert(struct space *space, struct txn *txn,
 					  format, request->index_base) != 0) {
 			return -1;
 		}
+		used = region_used(&fiber()->gc);
+		if (msgpack_compress_fields(space, request->tuple,
+					    request->tuple_end,
+					    &tmp_data, &tmp_data_end) != 0) {
+			region_truncate(&fiber()->gc, used);
+			diag_set(ClientError, ER_SYSTEM,
+				 "Failed to compress msgpack during replace");
+			return -1;
+		}
 		stmt->new_tuple =
-			space->format->vtab.tuple_new(format, request->tuple,
-						      request->tuple_end);
+			space->format->vtab.tuple_new(format, tmp_data,
+						      tmp_data_end);
+		region_truncate(&fiber()->gc, used);
 		if (stmt->new_tuple == NULL)
 			return -1;
 		tuple_ref(stmt->new_tuple);
 	} else {
 		uint32_t new_size = 0, bsize;
 		const char *old_data = tuple_data_range(old_tuple, &bsize);
+		used = region_used(&fiber()->gc);
+		if (msgpack_decompress_fields(old_data, old_data + bsize,
+					      &tmp_data, &tmp_data_end) != 0) {
+			region_truncate(&fiber()->gc, used);
+			diag_set(ClientError, ER_SYSTEM,
+				 "Failed to decompress during update");
+			return -1;
+		}
 		/*
 		 * Update the tuple.
 		 * xrow_upsert_execute() fails on totally wrong
@@ -512,16 +564,25 @@ memtx_space_execute_upsert(struct space *space, struct txn *txn,
 		uint64_t column_mask = COLUMN_MASK_FULL;
 		const char *new_data =
 			xrow_upsert_execute(request->ops, request->ops_end,
-					    old_data, old_data + bsize,
+					    tmp_data, tmp_data_end,
 					    format, &new_size,
 					    request->index_base, false,
 					    &column_mask);
-		if (new_data == NULL)
+		if (new_data == NULL) {
+			region_truncate(&fiber()->gc, used);
 			return -1;
-
+		}
+		if (msgpack_compress_fields(space, new_data, new_data + new_size,
+					    &tmp_data, &tmp_data_end) != 0) {
+			region_truncate(&fiber()->gc, used);
+			diag_set(ClientError, ER_SYSTEM,
+				 "Failed to compress msgpack during replace");
+			return -1;
+		}
 		stmt->new_tuple =
-			space->format->vtab.tuple_new(format, new_data,
-						      new_data + new_size);
+			space->format->vtab.tuple_new(format, tmp_data,
+						     tmp_data_end);
+		region_truncate(&fiber()->gc, used);
 		if (stmt->new_tuple == NULL)
 			return -1;
 		tuple_ref(stmt->new_tuple);
