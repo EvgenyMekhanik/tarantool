@@ -331,6 +331,8 @@ struct PACKED tuple
 	 * be clarified by transaction engine.
 	 */
 	bool is_dirty : 1;
+	/** Flag indicates, that tuple contains compressed fields. */
+	bool is_compressed : 1;
 	/** Format identifier. */
 	uint16_t format_id;
 	/**
@@ -423,6 +425,7 @@ tuple_create(struct tuple *tuple, uint8_t refs, uint16_t format_id,
 	tuple->local_refs = refs;
 	tuple->has_uploaded_refs = false;
 	tuple->is_dirty = false;
+	tuple->is_compressed = false;
 	tuple->format_id = format_id;
 	if (make_compact) {
 		assert(tuple_can_be_compact(data_offset, bsize));
