@@ -67,6 +67,7 @@ struct tuple;
 struct tuple_chunk;
 struct tuple_format;
 struct coll;
+struct index;
 
 /** Engine-specific tuple format methods. */
 struct tuple_format_vtab {
@@ -134,6 +135,8 @@ struct tuple_field {
 	struct coll *coll;
 	/** Collation identifier. */
 	uint32_t coll_id;
+	/** Type of compression for this field. */
+	enum compression_type compression_type;
 	/**
 	 * Bitmap of fields that must be present in a tuple
 	 * conforming to the multikey subtree. Not NULL only
@@ -437,6 +440,12 @@ tuple_field_map_create(struct tuple_format *format, const char *tuple,
  */
 void
 tuple_format_init();
+
+/**
+ * Check @a index correspondence to tuple @a format.
+ */
+int
+tuple_format_validate_index(struct tuple_format *format, struct index *index);
 
 
 /** Tuple format iterator flags to configure parse mode. */

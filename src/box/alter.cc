@@ -501,6 +501,12 @@ field_def_decode(struct field_def *field, const char **data,
 				    "string, scalar and any fields"));
 		return -1;
 	}
+	if (field->compression_type == compression_type_MAX) {
+		diag_set(ClientError, errcode, tt_cstr(space_name, name_len),
+			 tt_sprintf("field %d has unknown compression type",
+				    fieldno + TUPLE_INDEX_BASE));
+		return -1;
+	}
 
 	const char *dv = field->default_value;
 	if (dv != NULL) {

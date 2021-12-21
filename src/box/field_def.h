@@ -37,6 +37,9 @@
 #include <limits.h>
 #include <msgpuck.h>
 #include "opt_def.h"
+#include "mp_extension_types.h"
+#include "tt_compression.h"
+#include "mp_compression.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -99,6 +102,8 @@ extern const char *field_type_strs[];
 
 extern const char *on_conflict_action_strs[];
 
+extern const char *compression_type_strs[];
+
 /** Check if @a type1 can store values of @a type2. */
 bool
 field_type1_contains_type2(enum field_type type1, enum field_type type2);
@@ -144,6 +149,8 @@ struct field_def {
 	char *default_value;
 	/** AST for parsed default value. */
 	struct Expr *default_value_expr;
+	/** Type of comression to this field */
+	enum compression_type compression_type;
 };
 
 /**
@@ -173,8 +180,19 @@ field_mp_type_is_compatible(enum field_type type, const char *data,
 							 is_nullable);
 	} else {
 		int8_t ext_type;
-		mp_decode_extl(&data, &ext_type);
-		if (ext_type >= 0) {
+		uint32_t len = mp_decode_extl(&data, &ext_type);
+		if (ext_type == MP_COMPRESSION) {
+			struct tt_compression ttc;
+			tt_compression_create(&ttc);
+			if (compression_unpack(&data, len, &ttc) != 0) {
+				tt_compression_destroy(&ttc);
+				return false;
+			}
+			bool rc = field_mp_type_is_compatible(type, ttc.data,
+							      is_nullable);
+			tt_compression_destroy(&ttc);
+			return rc;
+		} else if (ext_type >= 0) {
 			mask = field_ext_type[type];
 			return (mask & (1U << ext_type)) != 0;
 		} else {

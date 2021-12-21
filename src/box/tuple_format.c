@@ -34,6 +34,8 @@
 #include "tuple_format.h"
 #include "coll_id_cache.h"
 #include "tt_static.h"
+#include "index.h"
+#include "engine.h"
 
 #include <PMurHash.h>
 
@@ -462,6 +464,7 @@ tuple_format_create(struct tuple_format *format, struct key_def * const *keys,
 		}
 		field->coll = coll;
 		field->coll_id = cid;
+		field->compression_type = fields[i].compression_type;
 	}
 
 	int current_slot = 0;
@@ -964,6 +967,27 @@ tuple_format_min_field_count(struct key_def * const *keys, uint16_t key_count,
 		}
 	}
 	return min_field_count;
+}
+
+int
+tuple_format_validate_index(struct tuple_format *format, struct index *index)
+{
+	struct key_def *key_def = index->def->key_def;
+	for (uint32_t i = 0; i < key_def->part_count; i++) {
+		uint32_t fieldno = key_def->parts[i].fieldno;
+		if (fieldno >= tuple_format_field_count(format))
+			continue;
+		struct tuple_field *field =
+			tuple_format_field(format, fieldno);
+		if (field->compression_type != COMPRESSION_TYPE_NONE) {
+			assert(format->engine != NULL);
+			diag_set(ClientError, ER_UNSUPPORTED,
+				 ((struct engine *)format->engine)->name,
+				 "compression for indexed fields");
+			return -1;
+		}
+	}
+	return 0;
 }
 
 void
