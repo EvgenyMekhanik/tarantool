@@ -35,6 +35,8 @@ set(core_sources
     tt_uuid.c
     mp_uuid.c
     mp_datetime.c
+    tt_compression.c
+    mp_compression.c
 )
 
 if(ENABLE_SSL)
@@ -62,7 +64,8 @@ target_link_libraries(core salad small uri decNumber bit tzcode
                       ${LIBEV_LIBRARIES}
                       ${LIBEIO_LIBRARIES} ${LIBCORO_LIBRARIES}
                       ${MSGPUCK_LIBRARIES} ${ICU_LIBRARIES}
-                      ${LIBCDT_LIBRARIES})
+                      ${LIBCDT_LIBRARIES} ${ZSTD_LIBRARIES}
+                      ${LZ4_LIBRARIES})
 
 if (ENABLE_BACKTRACE AND NOT TARGET_OS_DARWIN)
     target_link_libraries(core gcc_s ${UNWIND_LIBRARIES})

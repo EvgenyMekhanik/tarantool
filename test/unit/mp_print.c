@@ -7,8 +7,10 @@
 #include "mp_uuid.h"
 #include "mp_error.h"
 #include "mp_datetime.h"
+#include "mp_compression.h"
 #include "trivia/util.h"
 #include "unit.h"
+#include "zstd.h"
 #include <stdio.h>
 
 static int
@@ -364,10 +366,35 @@ test_mp_print_datetime(void)
 	footer();
 }
 
+static void
+test_mp_print_compression(void)
+{
+	header();
+	plan(1);
+
+	char *source = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+	char sample[] = "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"";
+
+	char *data = xmalloc(mp_sizeof_str(strlen(source)));
+	char *data_end = data;
+	data_end = mp_encode_str(data_end, source, strlen(source));
+	char *cdata = xmalloc(data_end - data);
+	char *cdata_end = mp_compress(cdata, data, data_end - data,
+				      COMPRESSION_TYPE_ZSTD, ZSTD_maxCLevel());
+	test_mp_print(sample, cdata);
+
+	free(cdata);
+	free(data);
+
+	footer();
+}
+
 int
 main(void)
 {
-	plan(14);
+	plan(15);
 
 	random_init();
 	msgpack_init();
@@ -386,6 +413,7 @@ main(void)
 	test_mp_print_uuid();
 	test_mp_print_error();
 	test_mp_print_datetime();
+	test_mp_print_compression();
 
 	return check_plan();
 }
