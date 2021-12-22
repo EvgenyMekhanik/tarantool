@@ -142,6 +142,8 @@ endif ()
 
 add_executable(mp_print.test mp_print.c)
 target_link_libraries(mp_print.test unit core box)
+add_executable(compression.test compression.c)
+target_link_libraries(compression.test unit core box)
 
 add_executable(scramble.test scramble.c core_test_utils.c)
 target_link_libraries(scramble.test scramble)
