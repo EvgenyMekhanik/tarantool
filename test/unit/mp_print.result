@@ -1,0 +1,113 @@
+1..14
+	*** test_mp_print_nil ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 1 - subtests
+	*** test_mp_print_nil: done ***
+	*** test_mp_print_uint ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 2 - subtests
+	*** test_mp_print_uint: done ***
+	*** test_mp_print_int ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 3 - subtests
+	*** test_mp_print_int: done ***
+	*** test_mp_print_str ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 4 - subtests
+	*** test_mp_print_str: done ***
+	*** test_mp_print_bin ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 5 - subtests
+	*** test_mp_print_bin: done ***
+	*** test_mp_print_array ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 6 - subtests
+	*** test_mp_print_array: done ***
+	*** test_mp_print_map ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 7 - subtests
+	*** test_mp_print_map: done ***
+	*** test_mp_print_bool ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 8 - subtests
+	*** test_mp_print_bool: done ***
+	*** test_mp_print_float ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 9 - subtests
+	*** test_mp_print_float: done ***
+	*** test_mp_print_double ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 10 - subtests
+	*** test_mp_print_double: done ***
+	*** test_mp_print_decimal ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 11 - subtests
+	*** test_mp_print_decimal: done ***
+	*** test_mp_print_uuid ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 12 - subtests
+	*** test_mp_print_uuid: done ***
+	*** test_mp_print_error ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 13 - subtests
+	*** test_mp_print_error: done ***
+	*** test_mp_print_datetime ***
+    1..1
+        1..2
+        ok 1 - mp_snprint
+        ok 2 - mp_fprint
+    ok 1 - subtests
+ok 14 - subtests
+	*** test_mp_print_datetime: done ***
