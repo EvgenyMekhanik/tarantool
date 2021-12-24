@@ -48,6 +48,7 @@
 #include "ck_constraint.h"
 #include "assoc.h"
 #include "constraint_id.h"
+#include "tuple_compression.h"
 
 int
 access_check_space(struct space *space, user_access_t access)
@@ -384,6 +385,14 @@ space_before_replace(struct space *space, struct txn *txn,
 	if (index_get(index, key, part_count, &old_tuple) != 0)
 		return -1;
 
+	if (old_tuple != NULL) {
+		if (tuple_is_compressed(old_tuple))
+			old_tuple = decompress_tuple_new(space, old_tuple);
+		if (old_tuple == NULL)
+			return -1;
+		tuple_ref(old_tuple);
+	}
+
 after_old_tuple_lookup:;
 
 	/*
@@ -411,8 +420,10 @@ after_old_tuple_lookup:;
 					       old_data_end,
 					       space->format, &new_size,
 					       request->index_base, NULL);
-		if (new_data == NULL)
+		if (new_data == NULL) {
+			tuple_unref(old_tuple);
 			return -1;
+		}
 		new_data_end = new_data + new_size;
 		break;
 	case IPROTO_DELETE:
@@ -454,8 +465,10 @@ after_old_tuple_lookup:;
 	if (new_data != NULL) {
 		new_tuple = tuple_new(tuple_format_runtime,
 				      new_data, new_data_end);
-		if (new_tuple == NULL)
+		if (new_tuple == NULL) {
+			tuple_unref(old_tuple);
 			return -1;
+		}
 		tuple_ref(new_tuple);
 	}
 
@@ -515,6 +528,8 @@ after_old_tuple_lookup:;
 		rc = request_create_from_tuple(request, space,
 					       old_tuple, new_tuple);
 out:
+	if (old_tuple != NULL)
+		tuple_unref(old_tuple);
 	if (new_tuple != NULL)
 		tuple_unref(new_tuple);
 	return rc;

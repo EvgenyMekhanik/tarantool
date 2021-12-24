@@ -43,6 +43,7 @@
 #include "memtx_engine.h"
 #include "column_mask.h"
 #include "sequence.h"
+#include "tuple_compression.h"
 
 /*
  * Yield every 1K tuples while building a new index or checking
@@ -336,9 +337,8 @@ memtx_space_execute_replace(struct space *space, struct txn *txn,
 	struct memtx_space *memtx_space = (struct memtx_space *)space;
 	struct txn_stmt *stmt = txn_current_stmt(txn);
 	enum dup_replace_mode mode = dup_replace_mode(request->type);
-	stmt->new_tuple =
-		space->format->vtab.tuple_new(space->format, request->tuple,
-					      request->tuple_end);
+	stmt->new_tuple = compress_tuple_new(space, request->tuple,
+					     request->tuple_end);
 	if (stmt->new_tuple == NULL)
 		return -1;
 	tuple_ref(stmt->new_tuple);
@@ -350,8 +350,12 @@ memtx_space_execute_replace(struct space *space, struct txn *txn,
 				 mode, &stmt->old_tuple) != 0)
 		return -1;
 	stmt->engine_savepoint = stmt;
-	/** The new tuple is referenced by the primary key. */
 	*result = stmt->new_tuple;
+	if (*result != NULL && tuple_is_compressed(*result)) {
+		*result = decompress_tuple_new(space, *result);
+		if (*result == NULL)
+			return -1;
+	}
 	return 0;
 }
 
@@ -385,6 +389,11 @@ memtx_space_execute_delete(struct space *space, struct txn *txn,
 		return -1;
 	stmt->engine_savepoint = stmt;
 	*result = stmt->old_tuple;
+	if (*result != NULL && tuple_is_compressed(*result)) {
+		*result = decompress_tuple_new(space, *result);
+		if (*result == NULL)
+			return -1;
+	}
 	return 0;
 }
 
@@ -411,20 +420,26 @@ memtx_space_execute_update(struct space *space, struct txn *txn,
 		return 0;
 	}
 
+	struct tuple *old_tuple_decompress =
+		decompress_tuple_new(space, old_tuple);
+	if (old_tuple_decompress == NULL)
+		return -1;
+	tuple_ref(old_tuple_decompress);
+
 	/* Update the tuple; legacy, request ops are in request->tuple */
 	uint32_t new_size = 0, bsize;
 	struct tuple_format *format = space->format;
-	const char *old_data = tuple_data_range(old_tuple, &bsize);
+	const char *old_data = tuple_data_range(old_tuple_decompress, &bsize);
 	const char *new_data =
 		xrow_update_execute(request->tuple, request->tuple_end,
 				    old_data, old_data + bsize, format,
 				    &new_size, request->index_base, NULL);
+	tuple_unref(old_tuple_decompress);
 	if (new_data == NULL)
 		return -1;
 
-	stmt->new_tuple =
-		space->format->vtab.tuple_new(format, new_data,
-					      new_data + new_size);
+	stmt->new_tuple = compress_tuple_new(space, new_data,
+					     new_data + new_size);
 	if (stmt->new_tuple == NULL)
 		return -1;
 	tuple_ref(stmt->new_tuple);
@@ -436,6 +451,11 @@ memtx_space_execute_update(struct space *space, struct txn *txn,
 		return -1;
 	stmt->engine_savepoint = stmt;
 	*result = stmt->new_tuple;
+	if (*result != NULL && tuple_is_compressed(*result)) {
+		*result = decompress_tuple_new(space, *result);
+		if (*result == NULL)
+			return -1;
+	}
 	return 0;
 }
 
@@ -494,15 +514,21 @@ memtx_space_execute_upsert(struct space *space, struct txn *txn,
 					  format, request->index_base) != 0) {
 			return -1;
 		}
-		stmt->new_tuple =
-			space->format->vtab.tuple_new(format, request->tuple,
-						      request->tuple_end);
+		stmt->new_tuple = compress_tuple_new(space, request->tuple,
+						     request->tuple_end);
 		if (stmt->new_tuple == NULL)
 			return -1;
 		tuple_ref(stmt->new_tuple);
 	} else {
+		struct tuple *old_tuple_decompress =
+			decompress_tuple_new(space, old_tuple);
+		if (old_tuple_decompress == NULL)
+			return -1;
+		tuple_ref(old_tuple_decompress);
+
 		uint32_t new_size = 0, bsize;
-		const char *old_data = tuple_data_range(old_tuple, &bsize);
+		const char *old_data =
+			tuple_data_range(old_tuple_decompress, &bsize);
 		/*
 		 * Update the tuple.
 		 * xrow_upsert_execute() fails on totally wrong
@@ -516,12 +542,12 @@ memtx_space_execute_upsert(struct space *space, struct txn *txn,
 					    format, &new_size,
 					    request->index_base, false,
 					    &column_mask);
+		tuple_unref(old_tuple_decompress);
 		if (new_data == NULL)
 			return -1;
 
-		stmt->new_tuple =
-			space->format->vtab.tuple_new(format, new_data,
-						      new_data + new_size);
+		stmt->new_tuple = compress_tuple_new(space, new_data,
+						     new_data + new_size);
 		if (stmt->new_tuple == NULL)
 			return -1;
 		tuple_ref(stmt->new_tuple);
@@ -611,6 +637,7 @@ memtx_space_ephemeral_delete(struct space *space, const char *key)
 	struct tuple *old_tuple;
 	if (index_get(primary_index, key, part_count, &old_tuple) != 0)
 		return -1;
+	assert(old_tuple == NULL || !tuple_is_compressed(old_tuple));
 	if (old_tuple != NULL &&
 	    memtx_space->replace(space, old_tuple, NULL,
 				 DUP_REPLACE, &old_tuple) != 0)
@@ -1149,6 +1176,11 @@ memtx_space_build_index(struct space *src_space, struct index *new_index,
 		if (!(memtx_space->replace == memtx_space_replace_all_keys))
 			return 0;
 	}
+	if (src_space->format != NULL) {
+		if (tuple_format_validate_index(src_space->format,
+						new_index) != 0)
+			return -1;
+	}
 	struct index *pk = index_find(src_space, 0);
 	if (pk == NULL)
 		return -1;
@@ -1208,6 +1240,14 @@ memtx_space_build_index(struct space *src_space, struct index *new_index,
 	struct tuple *tuple;
 	size_t count = 0;
 	while ((rc = iterator_next(it, &tuple)) == 0 && tuple != NULL) {
+		/*
+		 * Check that the tuple doesn't contain compressed data fields
+		 * correspondce to new indexed fields.
+		 */
+		rc = tuple_format_validate_index(tuple_format(tuple),
+						 new_index);
+		if (rc != 0)
+			break;
 		/*
 		 * Check that the tuple is OK according to the
 		 * new format.

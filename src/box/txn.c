@@ -39,6 +39,7 @@
 #include "errinj.h"
 #include "iproto_constants.h"
 #include "box.h"
+#include "tuple_compression.h"
 
 double too_long_threshold;
 
@@ -484,9 +485,52 @@ txn_commit_stmt(struct txn *txn, struct request *request)
 			 * must remain the same
 			 */
 			stmt->does_require_old_tuple = true;
+			struct tuple *old_tuple = stmt->old_tuple;
+			struct tuple *new_tuple = stmt->new_tuple;
+			bool old_is_compressed = false;
+			bool new_is_compressed = false;
+			if (stmt->old_tuple != NULL) {
+				old_is_compressed =
+					tuple_is_compressed(stmt->old_tuple);
+				if (old_is_compressed) {
+					stmt->old_tuple =
+						decompress_tuple_new(stmt->space,
+								     stmt->old_tuple);
+					if (stmt->old_tuple == NULL) {
+						stmt->old_tuple = old_tuple;
+						goto fail;
+					}
+					tuple_ref(stmt->old_tuple);
+				}
+			}
+			if (stmt->new_tuple != NULL) {
+				new_is_compressed =
+					tuple_is_compressed(stmt->new_tuple);
+				if (new_is_compressed) {
+					stmt->new_tuple =
+						decompress_tuple_new(stmt->space,
+								     stmt->new_tuple);
+					if (stmt->new_tuple == NULL) {
+						if (old_is_compressed) {
+							tuple_unref(stmt->old_tuple);
+							stmt->old_tuple = old_tuple;
+						}
+						goto fail;
+					}
+					tuple_ref(stmt->new_tuple);
+				}
+			}
 
 			if(trigger_run(&stmt->space->on_replace, txn) != 0)
 				goto fail;
+			if (old_is_compressed) {
+				tuple_unref(stmt->old_tuple);
+				stmt->old_tuple = old_tuple;
+			}
+			if (new_is_compressed) {
+				tuple_unref(stmt->new_tuple);
+				stmt->new_tuple = new_tuple;
+			}
 		}
 	}
 	--txn->in_sub_stmt;

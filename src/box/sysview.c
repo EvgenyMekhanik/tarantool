@@ -169,6 +169,7 @@ sysview_index_get(struct index *base, const char *key,
 	struct tuple *tuple;
 	if (index_get(pk, key, part_count, &tuple) != 0)
 		return -1;
+	assert(tuple == NULL || !tuple_is_compressed(tuple));
 	if (tuple == NULL || !index->filter(source, tuple))
 		*result = NULL;
 	else

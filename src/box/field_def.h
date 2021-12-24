@@ -37,6 +37,12 @@
 #include <limits.h>
 #include <msgpuck.h>
 #include "opt_def.h"
+#include "mp_extension_types.h"
+#include "tt_compression.h"
+#include "mp_compression.h"
+#include "fiber.h"
+
+#include <small/region.h>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -100,6 +106,8 @@ extern const char *field_type_strs[];
 
 extern const char *on_conflict_action_strs[];
 
+extern const char *compression_type_strs[];
+
 /** Check if @a type1 can store values of @a type2. */
 bool
 field_type1_contains_type2(enum field_type type1, enum field_type type2);
@@ -145,6 +153,8 @@ struct field_def {
 	char *default_value;
 	/** AST for parsed default value. */
 	struct Expr *default_value_expr;
+	/** Type of comression to this field */
+	enum compression_type compression_type;
 };
 
 /**
@@ -174,8 +184,26 @@ field_mp_type_is_compatible(enum field_type type, const char *data,
 							 is_nullable);
 	} else {
 		int8_t ext_type;
+		const char *svp = data;
 		mp_decode_extl(&data, &ext_type);
-		if (ext_type >= 0) {
+		if (ext_type == MP_COMPRESSION) {
+			data = svp;
+			size_t size = mp_decompress(NULL, 0, &data);
+			if (size == 0)
+				return false;
+			size_t used = region_used(&fiber()->gc);
+			char *ddata = (char *)region_alloc(&fiber()->gc, size);
+			if (ddata == NULL)
+				return false;
+			if (mp_decompress(ddata, size, &data) == 0) {
+				region_truncate(&fiber()->gc, used);
+				return false;
+			}
+			bool rc = field_mp_type_is_compatible(type, ddata,
+							      is_nullable);
+			region_truncate(&fiber()->gc, used);
+			return rc;
+		} else if (ext_type >= 0) {
 			mask = field_ext_type[type];
 			return (mask & (1U << ext_type)) != 0;
 		} else {

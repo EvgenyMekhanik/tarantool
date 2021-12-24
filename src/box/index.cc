@@ -39,6 +39,7 @@
 #include "rmean.h"
 #include "info/info.h"
 #include "memtx_tx.h"
+#include "tuple_compression.h"
 
 /* {{{ Utilities. **********************************************/
 
@@ -247,11 +248,19 @@ box_index_get(uint32_t space_id, uint32_t index_id, const char *key,
 		txn_rollback_stmt(txn);
 		return -1;
 	}
+	if (*result != NULL) {
+		if (tuple_is_compressed(*result)) {
+			*result = decompress_tuple_new(space, *result);
+			if (*result == NULL) {
+				txn_rollback_stmt(txn);
+				return -1;
+			}
+		}
+		tuple_bless(*result);
+	}
 	txn_commit_ro_stmt(txn, &svp);
 	/* Count statistics. */
 	rmean_collect(rmean_box, IPROTO_SELECT, 1);
-	if (*result != NULL)
-		tuple_bless(*result);
 	return 0;
 }
 
