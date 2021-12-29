@@ -1149,6 +1149,15 @@ memtx_space_build_index(struct space *src_space, struct index *new_index,
 		if (!(memtx_space->replace == memtx_space_replace_all_keys))
 			return 0;
 	}
+	if (src_space->format != NULL) {
+		/*
+		 * There may not be any tuples with current space format yet,
+		 * but we need to ensure that compression is not set in current
+		 * format for the fields of the new being created index.
+		 */
+		if (tuple_format_validate(new_index, src_space->format) != 0)
+			return -1;
+	}
 	struct index *pk = index_find(src_space, 0);
 	if (pk == NULL)
 		return -1;
@@ -1208,6 +1217,13 @@ memtx_space_build_index(struct space *src_space, struct index *new_index,
 	struct tuple *tuple;
 	size_t count = 0;
 	while ((rc = iterator_next(it, &tuple)) == 0 && tuple != NULL) {
+		/*
+		 * Check that the tuple format is OK according to the
+		 * new index.
+		 */
+		rc = tuple_format_validate(new_index, tuple_format(tuple));
+		if (rc != 0)
+			break;
 		/*
 		 * Check that the tuple is OK according to the
 		 * new format.
