@@ -37,6 +37,7 @@
 #include "json/json.h"
 #include "tuple_dictionary.h"
 #include "field_map.h"
+#include "index.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -134,6 +135,8 @@ struct tuple_field {
 	struct coll *coll;
 	/** Collation identifier. */
 	uint32_t coll_id;
+	/** Type of compression for this field. */
+	enum compression_type compression_type;
 	/**
 	 * Bitmap of fields that must be present in a tuple
 	 * conforming to the multikey subtree. Not NULL only
@@ -322,6 +325,34 @@ tuple_format_unref(struct tuple_format *format)
 	assert(format->refs >= 1);
 	if (--format->refs == 0)
 		tuple_format_delete(format);
+}
+
+/**
+ * Check tuple format correspondence to the space index.
+ * @param index Index to which the tuple_format must match.
+ * @param tuple_format  Tuple format to validate.
+ *
+ * @retval  0 The tuple format is valid.
+ * @retval -1 The tuple format is invalid.
+ */
+static inline int
+tuple_format_validate(struct index *index, struct tuple_format *format)
+{
+        struct key_def *key_def = index->def->key_def;
+        for (uint32_t i = 0; i < key_def->part_count; i++) {
+                uint32_t fieldno = key_def->parts[i].fieldno;
+                if (fieldno >= tuple_format_field_count(format))
+                        continue;
+                struct tuple_field *field =
+                        tuple_format_field(format, fieldno);
+                if (field->compression_type != COMPRESSION_TYPE_NONE) {
+                        assert(format->engine != NULL);
+                        diag_set(ClientError, ER_UNSUPPORTED,
+                                 "Engine", "compression for indexed fields");
+                        return -1;
+                }
+        }
+        return 0;
 }
 
 /**
