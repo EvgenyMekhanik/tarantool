@@ -38,6 +38,8 @@
 #include <msgpuck.h>
 #include "opt_def.h"
 
+#include "tt_compression_types.h"
+
 #if defined(__cplusplus)
 extern "C" {
 #endif /* defined(__cplusplus) */
@@ -100,6 +102,8 @@ extern const char *field_type_strs[];
 
 extern const char *on_conflict_action_strs[];
 
+extern const char *compression_type_strs[];
+
 /** Check if @a type1 can store values of @a type2. */
 bool
 field_type1_contains_type2(enum field_type type1, enum field_type type2);
@@ -145,6 +149,8 @@ struct field_def {
 	char *default_value;
 	/** AST for parsed default value. */
 	struct Expr *default_value_expr;
+	/** Type of comression to this field */
+	enum compression_type compression_type;
 };
 
 /**

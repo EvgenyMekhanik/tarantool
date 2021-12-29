@@ -462,6 +462,7 @@ tuple_format_create(struct tuple_format *format, struct key_def * const *keys,
 		}
 		field->coll = coll;
 		field->coll_id = cid;
+		field->compression_type = fields[i].compression_type;
 	}
 
 	int current_slot = 0;
