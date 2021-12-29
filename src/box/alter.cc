@@ -501,6 +501,12 @@ field_def_decode(struct field_def *field, const char **data,
 				    "string, scalar and any fields"));
 		return -1;
 	}
+	if (field->compression_type == compression_type_MAX) {
+		diag_set(ClientError, errcode, tt_cstr(space_name, name_len),
+			 tt_sprintf("field %d has unknown compression type",
+				    fieldno + TUPLE_INDEX_BASE));
+		return -1;
+	}
 
 	const char *dv = field->default_value;
 	if (dv != NULL) {
@@ -1207,6 +1213,11 @@ CheckSpaceFormat::prepare(struct alter_space *alter)
 	struct tuple_format *old_format = old_space->format;
 	if (old_format != NULL) {
 		assert(new_format != NULL);
+		for (uint32_t i = 0; i < old_space->index_count; i++) {
+			struct index *index = alter->old_space->index[i];
+			if (!tuple_format_is_compatible(index, new_format))
+				diag_raise();
+		}
 		if (!tuple_format1_can_store_format2_tuples(new_format,
 							    old_format))
 			space_check_format_with_yield(old_space, new_format);
@@ -1479,6 +1490,8 @@ CreateIndex::prepare(struct alter_space *alter)
 	new_index = space_index(alter->new_space, new_index_def->iid);
 	assert(new_index != NULL);
 
+	if (!tuple_format_is_compatible(new_index, alter->new_space->format))
+		diag_raise();
 	if (new_index_def->iid == 0) {
 		/*
 		 * Adding a primary key: bring the space

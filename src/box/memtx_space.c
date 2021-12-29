@@ -1209,6 +1209,14 @@ memtx_space_build_index(struct space *src_space, struct index *new_index,
 	size_t count = 0;
 	while ((rc = iterator_next(it, &tuple)) == 0 && tuple != NULL) {
 		/*
+		 * Check that the tuple format is OK according to the
+		 * new index.
+		 */
+		if (!tuple_format_is_compatible(new_index, tuple_format(tuple))) {
+			rc = -1;
+			break;
+		}
+		/*
 		 * Check that the tuple is OK according to the
 		 * new format.
 		 */
