@@ -1048,6 +1048,29 @@ memtx_engine_memory_stat(struct engine *engine, struct engine_memory_stat *stat)
 	stat->index += index_stats.totals.used;
 }
 
+static int
+memtx_engine_check_space_def(struct space_def *def)
+{
+	struct space *space = space_by_id(def->id);
+	if (space == NULL)
+		return 0;
+	for (uint32_t i = 0; i < def->field_count; i++) {
+		if (def->fields[i].compression_type == COMPRESSION_TYPE_NONE)
+			continue;
+		for (uint32_t j = 0; j < space->index_count; j++) {
+			struct key_def *key_def = space->index[j]->def->key_def;
+			for (uint32_t k = 0; k < key_def->part_count; k++) {
+				if (key_def->parts[k].fieldno == i) {
+					diag_set(ClientError, ER_UNSUPPORTED,
+						 "Index field", "compression");
+					return -1;
+				}
+			}
+		}
+	}
+	return 0;
+}
+
 static const struct engine_vtab memtx_engine_vtab = {
 	/* .shutdown = */ memtx_engine_shutdown,
 	/* .create_space = */ memtx_engine_create_space,
@@ -1074,7 +1097,7 @@ static const struct engine_vtab memtx_engine_vtab = {
 	/* .backup = */ memtx_engine_backup,
 	/* .memory_stat = */ memtx_engine_memory_stat,
 	/* .reset_stat = */ generic_engine_reset_stat,
-	/* .check_space_def = */ generic_engine_check_space_def,
+	/* .check_space_def = */ memtx_engine_check_space_def,
 };
 
 /**
