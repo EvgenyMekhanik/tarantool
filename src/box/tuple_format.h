@@ -37,6 +37,7 @@
 #include "json/json.h"
 #include "tuple_dictionary.h"
 #include "field_map.h"
+#include "index.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -120,6 +121,8 @@ struct tuple_field {
 	struct coll *coll;
 	/** Collation identifier. */
 	uint32_t coll_id;
+	/** Type of compression for this field. */
+	enum compression_type compression_type;
 	/**
 	 * Bitmap of fields that must be present in a tuple
 	 * conforming to the multikey subtree. Not NULL only
@@ -308,6 +311,27 @@ tuple_format_unref(struct tuple_format *format)
 	assert(format->refs >= 1);
 	if (--format->refs == 0)
 		tuple_format_delete(format);
+}
+
+/**
+ * Check tuple format is compatible with the space index.
+ */
+static inline bool
+tuple_format_is_compatible(struct index *index, struct tuple_format *format)
+{
+        struct key_def *key_def = index->def->key_def;
+        for (uint32_t i = 0; i < tuple_format_field_count(format); i++) {
+        	struct tuple_field *field =
+                        tuple_format_field(format, i);
+        	if (field->compression_type == COMPRESSION_TYPE_NONE)
+			continue;
+		if (key_def_find_by_fieldno(key_def, i)) {
+			diag_set(ClientError, ER_UNSUPPORTED,
+				 "Indexed field", "compression");
+			return false;
+		}
+        }
+        return true;
 }
 
 /**

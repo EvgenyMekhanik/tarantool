@@ -39,6 +39,8 @@ set(core_sources
 
 if(ENABLE_TUPLE_COMPRESSION)
     list(APPEND core_sources ${TUPLE_COMPRESSION_CORE_SOURCES})
+else()
+    list(APPEND core_sources  tt_compression.c)
 endif()
 
 if(ENABLE_SSL)
