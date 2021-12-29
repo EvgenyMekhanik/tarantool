@@ -117,6 +117,7 @@ set(box_sources
     allocator.cc
     memtx_allocator.cc
     msgpack.c
+    tuple_compression.c
     iproto.cc
     xrow_io.cc
     tuple_convert.c

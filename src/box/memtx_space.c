@@ -43,6 +43,7 @@
 #include "memtx_engine.h"
 #include "column_mask.h"
 #include "sequence.h"
+#include "tuple_compression.h"
 
 /*
  * Yield every 1K tuples while building a new index or checking
@@ -336,9 +337,9 @@ memtx_space_execute_replace(struct space *space, struct txn *txn,
 	struct memtx_space *memtx_space = (struct memtx_space *)space;
 	struct txn_stmt *stmt = txn_current_stmt(txn);
 	enum dup_replace_mode mode = dup_replace_mode(request->type);
-	stmt->new_tuple =
-		space->format->vtab.tuple_new(space->format, request->tuple,
-					      request->tuple_end);
+
+	stmt->new_tuple = compress_tuple_new(space, request->tuple,
+					     request->tuple_end);
 	if (stmt->new_tuple == NULL)
 		return -1;
 	tuple_ref(stmt->new_tuple);
@@ -352,6 +353,11 @@ memtx_space_execute_replace(struct space *space, struct txn *txn,
 	stmt->engine_savepoint = stmt;
 	/** The new tuple is referenced by the primary key. */
 	*result = stmt->new_tuple;
+	if (*result != NULL && tuple_is_compressed(*result)) {
+		*result = decompress_tuple_new(space, *result);
+		if (*result == NULL)
+			return -1;
+	}
 	return 0;
 }
 
@@ -370,7 +376,7 @@ memtx_space_execute_delete(struct space *space, struct txn *txn,
 	if (exact_key_validate(pk->def->key_def, key, part_count) != 0)
 		return -1;
 	struct tuple *old_tuple;
-	if (index_get(pk, key, part_count, &old_tuple) != 0)
+	if (index_get(pk, key, part_count, &old_tuple, NULL) != 0)
 		return -1;
 
 	/*
@@ -385,6 +391,11 @@ memtx_space_execute_delete(struct space *space, struct txn *txn,
 		return -1;
 	stmt->engine_savepoint = stmt;
 	*result = stmt->old_tuple;
+	if (*result != NULL && tuple_is_compressed(*result)) {
+		*result = decompress_tuple_new(space, *result);
+		if (*result == NULL)
+			return -1;
+	}
 	return 0;
 }
 
@@ -402,8 +413,8 @@ memtx_space_execute_update(struct space *space, struct txn *txn,
 	uint32_t part_count = mp_decode_array(&key);
 	if (exact_key_validate(pk->def->key_def, key, part_count) != 0)
 		return -1;
-	struct tuple *old_tuple;
-	if (index_get(pk, key, part_count, &old_tuple) != 0)
+	struct tuple *old_tuple, *decompressed;
+	if (index_get(pk, key, part_count, &old_tuple, &decompressed) != 0)
 		return -1;
 
 	if (old_tuple == NULL) {
@@ -411,20 +422,23 @@ memtx_space_execute_update(struct space *space, struct txn *txn,
 		return 0;
 	}
 
+	assert(decompressed != NULL);
+	tuple_ref(decompressed);
+
 	/* Update the tuple; legacy, request ops are in request->tuple */
 	uint32_t new_size = 0, bsize;
 	struct tuple_format *format = space->format;
-	const char *old_data = tuple_data_range(old_tuple, &bsize);
+	const char *old_data = tuple_data_range(decompressed, &bsize);
 	const char *new_data =
 		xrow_update_execute(request->tuple, request->tuple_end,
 				    old_data, old_data + bsize, format,
 				    &new_size, request->index_base, NULL);
+	tuple_unref(decompressed);
 	if (new_data == NULL)
 		return -1;
 
-	stmt->new_tuple =
-		space->format->vtab.tuple_new(format, new_data,
-					      new_data + new_size);
+	stmt->new_tuple = compress_tuple_new(space, new_data,
+					     new_data + new_size);
 	if (stmt->new_tuple == NULL)
 		return -1;
 	tuple_ref(stmt->new_tuple);
@@ -436,6 +450,11 @@ memtx_space_execute_update(struct space *space, struct txn *txn,
 		return -1;
 	stmt->engine_savepoint = stmt;
 	*result = stmt->new_tuple;
+	if (*result != NULL && tuple_is_compressed(*result)) {
+		*result = decompress_tuple_new(space, *result);
+		if (*result == NULL)
+			return -1;
+	}
 	return 0;
 }
 
@@ -468,12 +487,13 @@ memtx_space_execute_upsert(struct space *space, struct txn *txn,
 	mp_decode_array(&key);
 
 	/* Try to find the tuple by primary key. */
-	struct tuple *old_tuple;
-	if (index_get(index, key, part_count, &old_tuple) != 0)
+	struct tuple *old_tuple, *decompressed;
+	if (index_get(index, key, part_count, &old_tuple, &decompressed) != 0)
 		return -1;
 
 	struct tuple_format *format = space->format;
 	if (old_tuple == NULL) {
+		assert(decompressed == NULL);
 		/**
 		 * Old tuple was not found. A write optimized
 		 * engine may only know this after commit, so
@@ -494,15 +514,18 @@ memtx_space_execute_upsert(struct space *space, struct txn *txn,
 					  format, request->index_base) != 0) {
 			return -1;
 		}
-		stmt->new_tuple =
-			space->format->vtab.tuple_new(format, request->tuple,
-						      request->tuple_end);
+		stmt->new_tuple = compress_tuple_new(space, request->tuple,
+						     request->tuple_end);
 		if (stmt->new_tuple == NULL)
 			return -1;
 		tuple_ref(stmt->new_tuple);
 	} else {
+		assert(decompressed != NULL);
+		tuple_ref(decompressed);
+
 		uint32_t new_size = 0, bsize;
-		const char *old_data = tuple_data_range(old_tuple, &bsize);
+		const char *old_data =
+			tuple_data_range(decompressed, &bsize);
 		/*
 		 * Update the tuple.
 		 * xrow_upsert_execute() fails on totally wrong
@@ -516,12 +539,12 @@ memtx_space_execute_upsert(struct space *space, struct txn *txn,
 					    format, &new_size,
 					    request->index_base, false,
 					    &column_mask);
+		tuple_unref(decompressed);
 		if (new_data == NULL)
 			return -1;
 
-		stmt->new_tuple =
-			space->format->vtab.tuple_new(format, new_data,
-						      new_data + new_size);
+		stmt->new_tuple = compress_tuple_new(space, new_data,
+						     new_data + new_size);
 		if (stmt->new_tuple == NULL)
 			return -1;
 		tuple_ref(stmt->new_tuple);
@@ -609,7 +632,7 @@ memtx_space_ephemeral_delete(struct space *space, const char *key)
 		return -1;
 	uint32_t part_count = mp_decode_array(&key);
 	struct tuple *old_tuple;
-	if (index_get(primary_index, key, part_count, &old_tuple) != 0)
+	if (index_get(primary_index, key, part_count, &old_tuple, NULL) != 0)
 		return -1;
 	if (old_tuple != NULL &&
 	    memtx_space->replace(space, old_tuple, NULL,

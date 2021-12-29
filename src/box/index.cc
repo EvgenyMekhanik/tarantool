@@ -39,6 +39,7 @@
 #include "rmean.h"
 #include "info/info.h"
 #include "memtx_tx.h"
+#include "tuple_compression.h"
 
 /* {{{ Utilities. **********************************************/
 
@@ -243,7 +244,8 @@ box_index_get(uint32_t space_id, uint32_t index_id, const char *key,
 	struct txn_ro_savepoint svp;
 	if (txn_begin_ro_stmt(space, &txn, &svp) != 0)
 		return -1;
-	if (index_get(index, key, part_count, result) != 0) {
+	struct tuple *unused;
+	if (index_get(index, key, part_count, &unused, result) != 0) {
 		txn_rollback_stmt(txn);
 		return -1;
 	}
@@ -559,6 +561,27 @@ index_build(struct index *index, struct index *pk)
 		return -1;
 
 	index_end_build(index);
+	return 0;
+}
+
+int
+index_get(struct index *index, const char *key,
+	  uint32_t part_count, struct tuple **compressed,
+	  struct tuple **decompressed)
+{
+	int rc = index->vtab->get(index, key, part_count, compressed);
+	if (rc != 0 || decompressed == NULL)
+		return rc;
+	struct space *space = space_by_id(index->def->space_id);
+	assert(space != NULL);
+	if (space_is_system(space) || space_is_ephemeral(space) ||
+	    space_is_temporary(space) || *compressed == NULL) {
+		*decompressed = *compressed;
+		return rc;
+	}
+	*decompressed = decompress_tuple_new(space, *compressed);
+	if (*decompressed == NULL)
+		return -1;
 	return 0;
 }
 

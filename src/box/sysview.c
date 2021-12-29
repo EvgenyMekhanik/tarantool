@@ -167,7 +167,7 @@ sysview_index_get(struct index *base, const char *key,
 	if (exact_key_validate(pk->def->key_def, key, part_count) != 0)
 		return -1;
 	struct tuple *tuple;
-	if (index_get(pk, key, part_count, &tuple) != 0)
+	if (index_get(pk, key, part_count, &tuple, false) != 0)
 		return -1;
 	if (tuple == NULL || !index->filter(source, tuple))
 		*result = NULL;
