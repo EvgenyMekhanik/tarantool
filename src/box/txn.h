@@ -206,6 +206,13 @@ struct txn_stmt {
 	struct tuple *old_tuple;
 	struct tuple *new_tuple;
 	/**
+	 * Before calling the triggers, we save the original
+	 * tuples here and unpack them, after the trigger is
+	 * runned, we restore them.
+	 */
+	struct tuple *orig_old_tuple;
+	struct tuple *orig_new_tuple;
+	/**
 	 * If new_tuple != NULL and this transaction was not prepared,
 	 * this member holds added story of the new_tuple.
 	 */
@@ -605,6 +612,17 @@ txn_on_wal_write(struct txn *txn, struct trigger *trigger)
 	txn_init_triggers(txn);
 	trigger_add(&txn->on_wal_write, trigger);
 }
+
+/**
+ * Unpack @stmt old and new tuples if they are compressed and save
+ * original tuples. Return 0 if success otherwise return -1.
+ */
+int
+txn_stmt_unpack_tuples(struct txn_stmt *stmt);
+
+/** Restore original @stmt tuples. */
+void
+txn_stmt_restore_tuples(struct txn_stmt *stmt);
 
 /**
  * Most statements don't have triggers, and txn objects

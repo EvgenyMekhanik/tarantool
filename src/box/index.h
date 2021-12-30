@@ -641,7 +641,7 @@ index_count(struct index *index, enum iterator_type type,
 
 static inline int
 index_get(struct index *index, const char *key,
-	   uint32_t part_count, struct tuple **result)
+	  uint32_t part_count, struct tuple **result)
 {
 	return index->vtab->get(index, key, part_count, result);
 }
