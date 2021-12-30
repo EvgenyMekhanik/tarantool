@@ -639,12 +639,10 @@ index_count(struct index *index, enum iterator_type type,
 	return index->vtab->count(index, type, key, part_count);
 }
 
-static inline int
+int
 index_get(struct index *index, const char *key,
-	   uint32_t part_count, struct tuple **result)
-{
-	return index->vtab->get(index, key, part_count, result);
-}
+	  uint32_t part_count, struct tuple **compressed,
+	  struct tuple **decompressed);
 
 /**
  * Get tuple to be inserted in index, based on index-specific constraints
