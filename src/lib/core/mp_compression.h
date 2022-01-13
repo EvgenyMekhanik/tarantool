@@ -14,6 +14,14 @@ extern "C" {
 #endif
 
 /**
+ * Same as mp_decompress, but should be called after
+ * decoding ext header.
+ */
+size_t
+mp_decompress_raw(const char **src, uint32_t src_len, const char *svp,
+                  char *dst, size_t dst_size);
+
+/**
  * Compress data from @a src data array into @a dst data array
  * according to compression @a type and @a level. If data size
  * after compression is greater or equal then data size before
