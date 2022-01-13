@@ -191,6 +191,15 @@ enum txn_status {
 };
 
 /**
+ * Сache that contains pointers to stmt
+ * decompressed tuples.
+ * */
+struct txm_stmt_tuple_cache {
+	struct tuple *old_tuple;
+	struct tuple *new_tuple;
+};
+
+/**
  * A single statement of a multi-statement
  * transaction: undo and redo info.
  */
@@ -205,6 +214,14 @@ struct txn_stmt {
 	struct space *space;
 	struct tuple *old_tuple;
 	struct tuple *new_tuple;
+	/**
+	 * Cache that contains pointers to decompressed tuples.
+	 * If during insert/replace/delete/update/upsert operations
+	 * we deal with compressed tuples and during these operations,
+	 * we decompress these tuples, we save pointers to decompressed
+	 * tuples here for further usage in on_replace triggers.
+	 */
+	struct txm_stmt_tuple_cache cache;
 	/**
 	 * If new_tuple != NULL and this transaction was not prepared,
 	 * this member holds added story of the new_tuple.
@@ -638,6 +655,24 @@ txn_stmt_on_rollback(struct txn_stmt *stmt, struct trigger *trigger)
 	assert(trigger->destroy == NULL);
 	trigger_add(&stmt->on_rollback, trigger);
 }
+
+/**
+ * Return decompressed old tuple of current @a stmt. If
+ * appropriate pointer in @a stmt structure is not NULL
+ * return it's value, otherwise decompress old_tuple from
+ * @a stmt structure, save it in cache pointer and return
+ * this decompressed tuple. Should be called after check
+ * that @a stmt old_tuple is not NULL.
+ */
+struct tuple *
+txn_stmt_get_decompressed_old_tuple(struct txn_stmt *stmt);
+
+/**
+ * Same as previous function but does all the same for the
+ * new_tuple from @a stmt structure.
+ */
+struct tuple *
+txn_stmt_get_decompressed_new_tuple(struct txn_stmt *stmt);
 
 /*
  * Return the total number of rows committed in the txn.

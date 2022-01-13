@@ -269,6 +269,21 @@ enum {
 };
 
 /**
+ * Allocate new tuple for memtx engine. If format supports compression
+ * allocate compressed tuple, otherwise allocate uncompressed tuple.
+ */
+extern struct tuple *
+(*memtx_tuple_new_common)(struct tuple_format *format, const char *data,
+			  const char *end);
+
+/**
+ * Compress @a tuple according its format. Return new allocated
+ * compressed tuple.
+ */
+extern struct tuple *
+(*memtx_tuple_compress)(struct tuple *tuple);
+
+/**
  * Allocate a block of size MEMTX_EXTENT_SIZE for memtx index
  * @ctx must point to memtx engine
  */

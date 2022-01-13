@@ -62,14 +62,21 @@ static int
 lbox_push_txn_stmt(struct lua_State *L, void *event)
 {
 	struct txn_stmt *stmt = txn_current_stmt((struct txn *) event);
+	struct tuple *tuple;
 
 	if (stmt->old_tuple) {
-		luaT_pushtuple(L, stmt->old_tuple);
+		tuple = txn_stmt_get_decompressed_old_tuple(stmt);
+		if (tuple == NULL)
+			return -1;
+		luaT_pushtuple(L, tuple);
 	} else {
 		lua_pushnil(L);
 	}
 	if (stmt->new_tuple) {
-		luaT_pushtuple(L, stmt->new_tuple);
+		tuple = txn_stmt_get_decompressed_new_tuple(stmt);
+		if (tuple == NULL)
+			return -1;
+		luaT_pushtuple(L, tuple);
 	} else {
 		lua_pushnil(L);
 	}

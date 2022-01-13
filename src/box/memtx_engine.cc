@@ -52,6 +52,7 @@
 #include "raft.h"
 #include "txn_limbo.h"
 #include "memtx_allocator.h"
+#include "tuple_compression.h"
 
 #include <type_traits>
 
@@ -73,6 +74,30 @@ enum {
 template <class ALLOC>
 static inline void
 create_memtx_tuple_format_vtab(struct tuple_format_vtab *vtab);
+
+template <class ALLOC>
+static inline struct tuple *
+memtx_tuple_new_common_impl(struct tuple_format *format, const char *data,
+			    const char *end);
+
+template <class ALLOC>
+static inline struct tuple *
+memtx_tuple_compress_impl(struct tuple *tuple);
+
+struct tuple *
+(*memtx_tuple_new_common)(struct tuple_format *format, const char *data,
+			  const char *end);
+
+struct tuple *
+(*memtx_tuple_compress)(struct tuple *tuple);
+
+template <class ALLOC>
+static void
+memtx_alloc_init(void)
+{
+	memtx_tuple_new_common = memtx_tuple_new_common_impl<ALLOC>;
+	memtx_tuple_compress = memtx_tuple_compress_impl<ALLOC>;
+}
 
 static int
 memtx_end_build_primary_key(struct space *space, void *param)
@@ -1123,9 +1148,11 @@ void
 memtx_set_tuple_format_vtab(const char *allocator_name)
 {
 	if (strncmp(allocator_name, "small", strlen("small")) == 0) {
+		memtx_alloc_init<SmallAlloc>();
 		create_memtx_tuple_format_vtab<SmallAlloc>
 			(&memtx_tuple_format_vtab);
 	} else if (strncmp(allocator_name, "system", strlen("system")) == 0) {
+		memtx_alloc_init<SysAlloc>();
 		create_memtx_tuple_format_vtab<SysAlloc>
 			(&memtx_tuple_format_vtab);
 	} else {
@@ -1297,8 +1324,9 @@ memtx_leave_delayed_free_mode(struct memtx_engine *memtx)
 }
 
 template<class ALLOC>
-struct tuple *
-memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
+static struct tuple *
+memtx_tuple_new_impl(struct tuple_format *format, const char *data,
+		     const char *end, bool validate)
 {
 	struct memtx_engine *memtx = (struct memtx_engine *)format->engine;
 	assert(mp_typeof(*data) == MP_ARRAY);
@@ -1310,7 +1338,7 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 	uint32_t data_offset, field_map_size;
 	char *raw;
 	bool make_compact;
-	if (tuple_field_map_create(format, data, true, &builder) != 0)
+	if (tuple_field_map_create(format, data, validate, &builder) != 0)
 		goto end;
 	field_map_size = field_map_build_size(&builder);
 	/*
@@ -1366,6 +1394,60 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 end:
 	region_truncate(region, region_svp);
 	return tuple;
+}
+
+template<class ALLOC>
+static inline struct tuple *
+memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
+{
+	return memtx_tuple_new_impl<ALLOC>(format, data, end, true);
+}
+
+template<class ALLOC>
+static inline struct tuple *
+memtx_compressed_tuple_new(struct tuple_format *format, const char *data,
+			   const char *end)
+{
+	struct field_map_builder builder;
+	/**
+	 * Validate field map for uncompressed data, to avoid doing
+	 * this for compressed data.
+	 */
+	if (tuple_field_map_create(format, data, true, &builder) != 0)
+		return NULL;
+	char *cdata, *cend;
+	size_t region_svp = region_used(&fiber()->gc);
+	cdata = (char *)region_alloc(&fiber()->gc, end - data);
+	if (cdata == NULL) {
+		diag_set(OutOfMemory, end - data, "region_alloc", "cdata");
+		return NULL;
+	}
+	tuple_compress_raw(format, data, end, &cdata, &cend);
+	struct tuple *tuple =
+		memtx_tuple_new_impl<ALLOC>(format, cdata, cend, false);
+	region_truncate(&fiber()->gc, region_svp);
+	return tuple;
+}
+
+template <class ALLOC>
+static inline struct tuple *
+memtx_tuple_new_common_impl(struct tuple_format *format, const char *data,
+			    const char *end)
+{
+	if (format->is_compressed)
+		return memtx_compressed_tuple_new<ALLOC>(format, data, end);
+	return memtx_tuple_new<ALLOC>(format, data, end);
+}
+
+template <class ALLOC>
+static inline struct tuple *
+memtx_tuple_compress_impl(struct tuple *tuple)
+{
+	struct tuple_format *format = tuple_format(tuple);
+	assert(format->is_compressed);
+	uint32_t bsize;
+	const char *data = tuple_data_range(tuple, &bsize);
+	return memtx_compressed_tuple_new<ALLOC>(format, data, data + bsize);
 }
 
 template<class ALLOC>

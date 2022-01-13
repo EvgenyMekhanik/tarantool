@@ -39,6 +39,7 @@
 #include "errinj.h"
 #include "iproto_constants.h"
 #include "box.h"
+#include "tuple_compression.h"
 
 double too_long_threshold;
 
@@ -53,6 +54,42 @@ txn_on_stop(struct trigger *trigger, void *event);
 
 static int
 txn_on_yield(struct trigger *trigger, void *event);
+
+enum txn_stmt_tuple_type {
+	TXN_STMT_OLD_TUPLE = 0,
+	TXN_STMT_NEW_TUPLE
+};
+
+static struct tuple *
+txn_stmt_get_decompressed_tuple(struct txn_stmt *stmt, enum txn_stmt_tuple_type type)
+{
+	struct tuple *tuple;
+	struct tuple **cache_tuple;
+
+	switch (type) {
+	case TXN_STMT_OLD_TUPLE:
+		tuple = stmt->old_tuple;
+		cache_tuple = &stmt->cache.old_tuple;
+		break;
+	case TXN_STMT_NEW_TUPLE:
+		tuple = stmt->new_tuple;
+		cache_tuple = &stmt->cache.new_tuple;
+		break;
+	default:
+		unreachable();
+	}
+
+	assert(tuple != NULL);
+	if (!tuple_is_compressed(tuple))
+		return tuple;
+	if (*cache_tuple == NULL) {
+		*cache_tuple = tuple_decompress(tuple);
+		if (*cache_tuple == NULL)
+			return NULL;
+		tuple_ref(*cache_tuple);
+	}
+	return *cache_tuple;
+}
 
 static inline enum box_error_code
 txn_flags_to_error_code(struct txn *txn)
@@ -141,6 +178,8 @@ txn_stmt_new(struct region *region)
 	stmt->space = NULL;
 	stmt->old_tuple = NULL;
 	stmt->new_tuple = NULL;
+	stmt->cache.old_tuple = NULL;
+	stmt->cache.new_tuple = NULL;
 	stmt->add_story = NULL;
 	stmt->del_story = NULL;
 	stmt->next_in_del_list = NULL;
@@ -155,7 +194,10 @@ static inline void
 txn_stmt_destroy(struct txn_stmt *stmt)
 {
 	assert(stmt->add_story == NULL && stmt->del_story == NULL);
-
+	if (stmt->cache.old_tuple != NULL)
+		tuple_unref(stmt->cache.old_tuple);
+	if (stmt->cache.new_tuple != NULL)
+		tuple_unref(stmt->cache.new_tuple);
 	if (stmt->old_tuple != NULL)
 		tuple_unref(stmt->old_tuple);
 	if (stmt->new_tuple != NULL)
@@ -494,6 +536,18 @@ txn_commit_stmt(struct txn *txn, struct request *request)
 fail:
 	txn_rollback_stmt(txn);
 	return -1;
+}
+
+struct tuple *
+txn_stmt_get_decompressed_old_tuple(struct txn_stmt *stmt)
+{
+	return txn_stmt_get_decompressed_tuple(stmt, TXN_STMT_OLD_TUPLE);
+}
+
+struct tuple *
+txn_stmt_get_decompressed_new_tuple(struct txn_stmt *stmt)
+{
+	return txn_stmt_get_decompressed_tuple(stmt, TXN_STMT_NEW_TUPLE);
 }
 
 /* A helper function to process on_wal_write triggers. */

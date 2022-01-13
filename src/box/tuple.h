@@ -612,6 +612,13 @@ tuple_format(struct tuple *tuple)
 	return format;
 }
 
+/** Check that some fields in tuple are compressed */
+static inline bool
+tuple_is_compressed(struct tuple *tuple)
+{
+        return tuple_format(tuple)->is_compressed;
+}
+
 /**
  * Instantiate a new engine-independent tuple from raw MsgPack Array data
  * using runtime arena. Use this function to create a standalone tuple
@@ -700,11 +707,8 @@ tuple_validate_raw(struct tuple_format *format, const char *data);
  * @retval  0 The tuple is valid.
  * @retval -1 The tuple is invalid.
  */
-static inline int
-tuple_validate(struct tuple_format *format, struct tuple *tuple)
-{
-	return tuple_validate_raw(format, tuple_data(tuple));
-}
+int
+tuple_validate(struct tuple_format *format, struct tuple *tuple);
 
 /*
  * Return a field map for the tuple.

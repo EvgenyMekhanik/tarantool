@@ -37,6 +37,7 @@
 #include "small/small.h"
 #include "xrow_update.h"
 #include "coll_id_cache.h"
+#include "tuple_compression.h"
 
 static struct mempool tuple_iterator_pool;
 static struct small_alloc runtime_alloc;
@@ -167,6 +168,20 @@ tuple_validate_raw(struct tuple_format *format, const char *tuple)
 	struct field_map_builder builder;
 	int rc = tuple_field_map_create(format, tuple, true, &builder);
 	region_truncate(region, region_svp);
+	return rc;
+}
+
+int
+tuple_validate(struct tuple_format *format, struct tuple *tuple)
+{
+	if (tuple_is_compressed(tuple)) {
+		tuple = tuple_decompress(tuple);
+		if (tuple == NULL)
+			return -1;
+	}
+	tuple_ref(tuple);
+	int rc = tuple_validate_raw(format, tuple_data(tuple));
+	tuple_unref(tuple);
 	return rc;
 }
 
