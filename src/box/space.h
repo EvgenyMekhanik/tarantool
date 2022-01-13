@@ -269,6 +269,14 @@ space_is_temporary(struct space *space)
 	return space->def->opts.is_temporary;
 }
 
+/** Return true is space is ephemeral */
+static inline bool
+space_is_ephemeral(struct space *space)
+{
+	return space->def->opts.is_ephemeral;
+}
+
+
 /** Return replication group id of a space. */
 static inline uint32_t
 space_group_id(struct space *space)

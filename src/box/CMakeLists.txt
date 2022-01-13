@@ -222,6 +222,12 @@ set(box_sources
     lua/watcher.c
     ${bin_sources})
 
+if(ENABLE_TUPLE_COMPRESSION)
+    list(APPEND box_sources ${TUPLE_COMPRESSION_SOURCES})
+else()
+    list(APPEND box_sources tuple_compression.c)
+endif()
+
 if(ENABLE_AUDIT_LOG)
     list(APPEND box_sources ${AUDIT_LOG_SOURCES})
 else()

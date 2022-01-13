@@ -10,11 +10,7 @@
 #include "tt_compression.h"
 #include "trivia/util.h"
 
-/**
- * Same as mp_decompress, but should be called after
- * decoding ext header.
- */
-static size_t
+size_t
 mp_decompress_raw(const char **src, uint32_t src_len, const char *svp,
 		  char *dst, size_t dst_size)
 {
