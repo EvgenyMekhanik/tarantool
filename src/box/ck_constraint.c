@@ -184,9 +184,11 @@ ck_constraint_on_replace_trigger(struct trigger *trigger, void *event)
 	struct txn *txn = (struct txn *) event;
 	struct txn_stmt *stmt = txn_current_stmt(txn);
 	assert(stmt != NULL);
-	struct tuple *new_tuple = stmt->new_tuple;
-	if (new_tuple == NULL)
+	if (stmt->new_tuple == NULL)
 		return 0;
+	struct tuple *new_tuple = txn_stmt_get_decompressed_new_tuple(stmt);
+	if (new_tuple == NULL)
+		return -1;
 
 	struct space *space = stmt->space;
 	assert(space != NULL);

@@ -99,6 +99,7 @@ static struct tuple_format_vtab tuple_format_runtime_vtab = {
 	runtime_tuple_new,
 	NULL,
 	NULL,
+	NULL,
 };
 
 static struct tuple *

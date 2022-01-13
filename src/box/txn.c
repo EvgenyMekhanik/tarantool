@@ -39,6 +39,7 @@
 #include "errinj.h"
 #include "iproto_constants.h"
 #include "box.h"
+#include "tuple_compression.h"
 
 double too_long_threshold;
 
@@ -141,6 +142,8 @@ txn_stmt_new(struct region *region)
 	stmt->space = NULL;
 	stmt->old_tuple = NULL;
 	stmt->new_tuple = NULL;
+	stmt->old_tuple_decompressed = NULL;
+	stmt->new_tuple_decompressed = NULL;
 	stmt->add_story = NULL;
 	stmt->del_story = NULL;
 	stmt->next_in_del_list = NULL;
@@ -155,12 +158,34 @@ static inline void
 txn_stmt_destroy(struct txn_stmt *stmt)
 {
 	assert(stmt->add_story == NULL && stmt->del_story == NULL);
-
+	if (stmt->old_tuple_decompressed)
+		tuple_unref(stmt->old_tuple_decompressed);
+	if (stmt->new_tuple_decompressed)
+		tuple_unref(stmt->new_tuple_decompressed);
 	if (stmt->old_tuple != NULL)
 		tuple_unref(stmt->old_tuple);
 	if (stmt->new_tuple != NULL)
 		tuple_unref(stmt->new_tuple);
 }
+
+#define TXN_STMT_GET_DECOMPRESSED_TUPLE(tuple_name) 				\
+struct tuple * 									\
+txn_stmt_get_decompressed_##tuple_name(struct txn_stmt *stmt)			\
+{										\
+	assert(stmt->tuple_name != NULL);					\
+	if (!tuple_is_compressed(stmt->tuple_name))				\
+		return stmt->tuple_name;					\
+	if (stmt->tuple_name##_decompressed == NULL) {				\
+		stmt->tuple_name##_decompressed =				\
+			tuple_decompress(stmt->tuple_name);			\
+		if (stmt->tuple_name##_decompressed == NULL)			\
+			return NULL;						\
+		tuple_ref(stmt->tuple_name##_decompressed);			\
+	}									\
+	return stmt->tuple_name##_decompressed;					\
+}
+TXN_STMT_GET_DECOMPRESSED_TUPLE(old_tuple)
+TXN_STMT_GET_DECOMPRESSED_TUPLE(new_tuple)
 
 /*
  * Undo changes done by a statement and run the corresponding

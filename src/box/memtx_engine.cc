@@ -52,6 +52,7 @@
 #include "raft.h"
 #include "txn_limbo.h"
 #include "memtx_allocator.h"
+#include "tuple_compression.h"
 
 #include <type_traits>
 
@@ -1297,8 +1298,9 @@ memtx_leave_delayed_free_mode(struct memtx_engine *memtx)
 }
 
 template<class ALLOC>
-struct tuple *
-memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
+static struct tuple *
+memtx_tuple_new_impl(struct tuple_format *format, const char *data,
+		     const char *end, bool validate)
 {
 	struct memtx_engine *memtx = (struct memtx_engine *)format->engine;
 	assert(mp_typeof(*data) == MP_ARRAY);
@@ -1310,7 +1312,7 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 	uint32_t data_offset, field_map_size;
 	char *raw;
 	bool make_compact;
-	if (tuple_field_map_create(format, data, true, &builder) != 0)
+	if (tuple_field_map_create(format, data, validate, &builder) != 0)
 		goto end;
 	field_map_size = field_map_build_size(&builder);
 	/*
@@ -1365,6 +1367,35 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 	say_debug("%s(%zu) = %p", __func__, tuple_len, memtx_tuple);
 end:
 	region_truncate(region, region_svp);
+	return tuple;
+}
+
+template<class ALLOC>
+static inline struct tuple *
+memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
+{
+	return memtx_tuple_new_impl<ALLOC>(format, data, end, true);
+}
+
+template<class ALLOC>
+static inline struct tuple *
+memtx_compressed_tuple_new(struct tuple_format *format, const char *data,
+			   const char *end)
+{
+	struct field_map_builder builder;
+	if (tuple_field_map_create(format, data, true, &builder) != 0)
+		return NULL;
+	char *cdata, *cend;
+	size_t region_svp = region_used(&fiber()->gc);
+	cdata = (char *)region_alloc(&fiber()->gc, end - data);
+	if (cdata == NULL) {
+		diag_set(OutOfMemory, end - data, "region_alloc", "cdata");
+		return NULL;
+	}
+	tuple_compress_raw(format, data, end, &cdata, &cend);
+	struct tuple *tuple =
+		memtx_tuple_new_impl<ALLOC>(format, cdata, cend, false);
+	region_truncate(&fiber()->gc, region_svp);
 	return tuple;
 }
 
@@ -1425,6 +1456,7 @@ create_memtx_tuple_format_vtab(struct tuple_format_vtab *vtab)
 {
 	vtab->tuple_delete = memtx_tuple_delete<ALLOC>;
 	vtab->tuple_new = memtx_tuple_new<ALLOC>;
+	vtab->compressed_tuple_new = memtx_compressed_tuple_new<ALLOC>;
 	vtab->tuple_chunk_delete = metmx_tuple_chunk_delete<ALLOC>;
 	vtab->tuple_chunk_new = memtx_tuple_chunk_new<ALLOC>;
 }

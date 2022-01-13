@@ -19,6 +19,10 @@
 extern "C" {
 #endif
 
+size_t
+mp_decompress_raw(const char **src, uint32_t src_len, char *dst,
+                  size_t dst_size);
+
 char *
 mp_compress(char *dst, const char *src, size_t src_size,
 	    enum compression_type type);

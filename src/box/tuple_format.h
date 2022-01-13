@@ -85,6 +85,14 @@ struct tuple_format_vtab {
 	(*tuple_new)(struct tuple_format *format, const char *data,
 	             const char *end);
 	/**
+	 * Allocates a new compressed tuple on the same allocator
+	 * and with the same format. Supported only for memtx engine
+	 * and only in enterprise version.
+	 */
+	struct tuple*
+	(*compressed_tuple_new)(struct tuple_format *format, const char *data,
+				const char *end);
+	/**
 	 * Free a tuple_chunk allocated for given tuple and
 	 * data.
 	 */
@@ -199,6 +207,8 @@ struct tuple_format {
 	 * those are never altered. We can also reuse formats exported to Lua.
 	 */
 	bool is_reusable;
+	/** True if tuples of this format may contain compressed fields. */
+	bool is_compressed;
 	/**
 	 * Size of minimal field map of tuple where each indexed
 	 * field has own offset slot (in bytes). The real tuple

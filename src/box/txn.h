@@ -206,6 +206,16 @@ struct txn_stmt {
 	struct tuple *old_tuple;
 	struct tuple *new_tuple;
 	/**
+	 * Pointers to decompressed tuples. Updated in lazy mode.
+	 * If during insert/replace/delete/update/upsert opertions
+	 * we deal with compressed tuples and during these operations,
+	 * whe unpack these compressed tuples, we save pointers to
+	 * decompressed tuples here for further usage in on_replace
+	 * triggers.
+	 */
+	struct tuple *old_tuple_decompressed;
+	struct tuple *new_tuple_decompressed;
+	/**
 	 * If new_tuple != NULL and this transaction was not prepared,
 	 * this member holds added story of the new_tuple.
 	 */
@@ -638,6 +648,12 @@ txn_stmt_on_rollback(struct txn_stmt *stmt, struct trigger *trigger)
 	assert(trigger->destroy == NULL);
 	trigger_add(&stmt->on_rollback, trigger);
 }
+
+struct tuple *
+txn_stmt_get_decompressed_old_tuple(struct txn_stmt *stmt);
+
+struct tuple *
+txn_stmt_get_decompressed_new_tuple(struct txn_stmt *stmt);
 
 /*
  * Return the total number of rows committed in the txn.
