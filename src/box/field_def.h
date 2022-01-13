@@ -39,6 +39,11 @@
 #include "opt_def.h"
 
 #include "tt_compression.h"
+#include "mp_extension_types.h"
+#include "mp_compression.h"
+#include "fiber.h"
+
+#include <small/region.h>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -180,8 +185,25 @@ field_mp_type_is_compatible(enum field_type type, const char *data,
 							 is_nullable);
 	} else {
 		int8_t ext_type;
-		mp_decode_extl(&data, &ext_type);
-		if (ext_type >= 0) {
+		size_t len = mp_decode_extl(&data, &ext_type);
+		if (ext_type == MP_COMPRESSION) {
+			const char *const svp = data;
+			size_t size = mp_decompress_raw(&data, len, svp,
+							NULL, 0);
+			size_t used = region_used(&fiber()->gc);
+			char *ddata = (char *)region_alloc(&fiber()->gc, size);
+			if (ddata == NULL)
+				return false;
+			size_t dsize = mp_decompress_raw(&data, len, data,
+							 ddata, size);
+			bool rc = false;
+			if (dsize != 0) {
+				rc = field_mp_type_is_compatible(type, ddata,
+								 is_nullable);
+			}
+			region_truncate(&fiber()->gc, used);
+			return rc;
+		} else if (ext_type >= 0) {
 			mask = field_ext_type[type];
 			return (mask & (1U << ext_type)) != 0;
 		} else {
