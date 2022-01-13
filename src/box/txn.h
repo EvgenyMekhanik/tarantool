@@ -206,6 +206,13 @@ struct txn_stmt {
 	struct tuple *old_tuple;
 	struct tuple *new_tuple;
 	/**
+	 * Before calling the triggers, we save the original
+	 * tuples here and decompress them, after the trigger
+	 * is runned, we restore them.
+	 */
+	struct tuple *orig_old_tuple;
+	struct tuple *orig_new_tuple;
+	/**
 	 * If new_tuple != NULL and this transaction was not prepared,
 	 * this member holds added story of the new_tuple.
 	 */

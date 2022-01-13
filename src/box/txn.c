@@ -39,6 +39,7 @@
 #include "errinj.h"
 #include "iproto_constants.h"
 #include "box.h"
+#include "tuple_compression.h"
 
 double too_long_threshold;
 
@@ -124,6 +125,55 @@ txn_add_redo(struct txn *txn, struct txn_stmt *stmt, struct request *request)
 	return 0;
 }
 
+/**
+ * Restore original @stmt tuples, if they was decompressed
+ */
+static void
+txn_stmt_restore_tuples(struct txn_stmt *stmt)
+{
+	if (stmt->orig_old_tuple) {
+		if (stmt->old_tuple)
+			tuple_unref(stmt->old_tuple);
+		stmt->old_tuple = stmt->orig_old_tuple;
+		stmt->orig_old_tuple = NULL;
+	}
+	if (stmt->orig_new_tuple) {
+		if (stmt->new_tuple)
+			tuple_unref(stmt->new_tuple);
+		stmt->new_tuple = stmt->orig_new_tuple;
+		stmt->orig_new_tuple = NULL;
+	}
+}
+
+/**
+ * Decompress @stmt old and new tuples if they are compressed and save
+ * original tuples. Return 0 if success otherwise return -1.
+ */
+static int
+txn_stmt_decompress_tuples(struct txn_stmt *stmt)
+{
+	if (stmt->old_tuple && tuple_is_compressed(stmt->old_tuple)) {
+		stmt->orig_old_tuple = stmt->old_tuple;
+		stmt->old_tuple = tt_decompress_tuple_new(stmt->space,
+							  stmt->old_tuple);
+		if (stmt->old_tuple == NULL)
+			goto fail;
+		tuple_ref(stmt->old_tuple);
+	}
+	if (stmt->new_tuple && tuple_is_compressed(stmt->new_tuple)) {
+		stmt->orig_new_tuple = stmt->new_tuple;
+		stmt->new_tuple = tt_decompress_tuple_new(stmt->space,
+							  stmt->new_tuple);
+		if (stmt->new_tuple == NULL)
+			goto fail;
+		tuple_ref(stmt->new_tuple);
+	}
+	return 0;
+fail:
+	txn_stmt_restore_tuples(stmt);
+	return -1;
+}
+
 /** Initialize a new stmt object within txn. */
 static struct txn_stmt *
 txn_stmt_new(struct region *region)
@@ -141,6 +191,8 @@ txn_stmt_new(struct region *region)
 	stmt->space = NULL;
 	stmt->old_tuple = NULL;
 	stmt->new_tuple = NULL;
+	stmt->orig_old_tuple = NULL;
+	stmt->orig_new_tuple = NULL;
 	stmt->add_story = NULL;
 	stmt->del_story = NULL;
 	stmt->next_in_del_list = NULL;
@@ -155,7 +207,7 @@ static inline void
 txn_stmt_destroy(struct txn_stmt *stmt)
 {
 	assert(stmt->add_story == NULL && stmt->del_story == NULL);
-
+	assert(stmt->orig_old_tuple == NULL && stmt->orig_new_tuple == NULL);
 	if (stmt->old_tuple != NULL)
 		tuple_unref(stmt->old_tuple);
 	if (stmt->new_tuple != NULL)
@@ -484,9 +536,14 @@ txn_commit_stmt(struct txn *txn, struct request *request)
 			 * must remain the same
 			 */
 			stmt->does_require_old_tuple = true;
-
-			if(trigger_run(&stmt->space->on_replace, txn) != 0)
+			if (txn_stmt_decompress_tuples(stmt) != 0)
 				goto fail;
+
+			if(trigger_run(&stmt->space->on_replace, txn) != 0) {
+				txn_stmt_restore_tuples(stmt);
+				goto fail;
+			}
+			txn_stmt_restore_tuples(stmt);
 		}
 	}
 	--txn->in_sub_stmt;

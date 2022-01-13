@@ -35,6 +35,10 @@
 #include "mp_extension_types.h"
 #include "mp_uuid.h"
 #include "tt_uuid.h"
+#include "mp_compression.h"
+#include "fiber.h"
+
+#include <small/region.h>
 
 const char *mp_type_strs[] = {
 	/* .MP_NIL    = */ "nil",
@@ -203,4 +207,43 @@ field_type_by_name(const char *name, size_t len)
 	else if (len == 1 && name[0] == '*')
 		return FIELD_TYPE_ANY;
 	return field_type_MAX;
+}
+
+bool
+field_mp_type_is_compatible(enum field_type type, const char *data,
+			    bool is_nullable)
+{
+	assert(type < field_type_MAX);
+	enum mp_type mp_type = mp_typeof(*data);
+	assert((size_t)mp_type < CHAR_BIT * sizeof(*field_mp_type));
+	uint32_t mask;
+	if (mp_type != MP_EXT) {
+		return field_mp_plain_type_is_compatible(type, mp_type,
+							 is_nullable);
+	} else {
+		int8_t ext_type;
+		size_t len = mp_decode_extl(&data, &ext_type);
+		if (ext_type == MP_COMPRESSION) {
+			const char *const svp = data;
+			size_t size = mp_decompress_raw(&data, len, NULL, 0);
+			size_t used = region_used(&fiber()->gc);
+			char *ddata = (char *)region_alloc(&fiber()->gc, size);
+			if (ddata == NULL)
+				return false;
+			data = svp;
+			size_t dsize = mp_decompress_raw(&data, len, ddata, size);
+			bool rc = false;
+			if (dsize != 0) {
+				rc = field_mp_type_is_compatible(type, ddata,
+								 is_nullable);
+			}
+			region_truncate(&fiber()->gc, used);
+			return rc;
+		} else if (ext_type >= 0) {
+			mask = field_ext_type[type];
+			return (mask & (1U << ext_type)) != 0;
+		} else {
+			return false;
+		}
+	}
 }
