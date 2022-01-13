@@ -85,6 +85,7 @@
 #include "audit.h"
 #include "trivia/util.h"
 #include "version.h"
+#include "tuple_compression.h"
 
 static char status[64] = "unknown";
 
@@ -2375,7 +2376,14 @@ box_select(uint32_t space_id, uint32_t index_id,
 			offset--;
 			continue;
 		}
+		bool is_compressed = tuple_is_compressed(tuple);
+		if (is_compressed) {
+			tuple = tt_decompress_tuple_new(space, tuple);
+			tuple_ref(tuple);
+		}
 		rc = port_c_add_tuple(port, tuple);
+		if (is_compressed)
+			tuple_unref(tuple);
 		if (rc != 0)
 			break;
 		found++;
