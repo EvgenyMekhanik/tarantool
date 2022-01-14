@@ -122,7 +122,9 @@ const char *on_conflict_action_strs[] = {
 
 const char *compression_type_strs[] = {
 	/* [COMPRESSION_TYPE_NONE]       = */ "none",
-	/* [COMPRESSION_TYPE_ZSTD]      = */  "zstd",
+#if defined(ENABLE_TUPLE_COMPRESSION)
+	/* [COMPRESSION_TYPE_ZSTD]       = */ "zstd",
+#endif
 };
 
 static int64_t

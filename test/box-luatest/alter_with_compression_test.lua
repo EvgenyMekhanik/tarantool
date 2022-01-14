@@ -1,9 +1,7 @@
 local server = require('test.luatest_helpers.server')
 local t = require('luatest')
 
-local g = t.group("invalid compression type", {
-    {engine = "memtx"}, {engine = "vinyl"}
-})
+local g = t.group()
 
 g.before_all(function(cg)
     cg.server = server:new({alias = 'master'})
@@ -13,6 +11,43 @@ end)
 g.after_all(function(cg)
     cg.server:stop()
 end)
+
+g.test_setting_compression_during_space_creation = function(cg)
+    local format
+
+    format = {{name = 'x', type = 'unsigned', compression = 'zstd'}}
+    t.assert_error_msg_content_equals(
+        "Failed to create space 'space': field 1 has unknown compression type",
+        function()
+            cg.server:exec(function(format)
+                return box.schema.space.create('space', {
+                   format = format
+                })
+            end, {format})
+        end
+    )
+    format = {{name = 'x', type = 'unsigned', compression = 'none'}}
+    t.assert_equals(cg.server:exec(function(format)
+        return box.schema.space.create('space', {format = format})
+    end, {format}), nil)
+end
+
+--[==[
+ g.server:exec(function()
+        box.schema.space.create('space')
+    end)
+    t.assert_error_msg_content_equals(
+        "Can't modify space 'space': field 1 has unknown compression type",
+        function()
+            cg.server:exec(function(format)
+                return box.space.space:format(format)
+            end, {format})
+        end
+    )
+    g.server:exec(function()
+        box.schema.space.drop()
+    end)
+
 
 g.test_invalid_compression_type_during_space_creation = function(cg)
     local format = {{name = 'x', type = 'unsigned', compression = 'invalid'}}
@@ -448,3 +483,4 @@ g.test_alter_index_with_compression = function()
         end
     )
 end
+]==]--
