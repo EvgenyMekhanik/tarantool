@@ -238,6 +238,7 @@ set (common_libraries
     ${READLINE_LIBRARIES}
     ${ICONV_LIBRARIES}
     ${OPENSSL_LIBRARIES}
+    ${LZ4_LIBRARIES}
 )
 
 if (TARGET_OS_LINUX OR TARGET_OS_DEBIAN_FREEBSD)
@@ -270,6 +271,7 @@ if(BUILD_STATIC)
             ${READLINE_LIBRARIES}
             ${CURL_LIBRARIES}
             ${OPENSSL_LIBRARIES}
+            ${LZ4_LIBRARIES}
             ${ICU_LIBRARIES})
         if (${libstatic} MATCHES "lib[^/]+.a")
             string(REGEX MATCH "lib[^/]+.a" libname ${libstatic})

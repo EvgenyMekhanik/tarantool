@@ -22,6 +22,8 @@ set(READLINE_VERSION 8.0)
 set(READLINE_HASH 7e6c1f16aee3244a69aba6e438295ca3)
 set(UNWIND_VERSION 1.3-rc1)
 set(UNWIND_HASH f09b670de5db6430a3de666e6aed60e3)
+set(LZ4_VERSION v1.9.2)
+set(LZ4_HASH 3898c56c82fb3d9455aefd48db48eaad)
 
 # Pass -isysroot=<SDK_PATH> option on Mac OS to a preprocessor and a C
 # compiler to find header files installed with an SDK.
@@ -271,9 +273,29 @@ else()
     )
 endif()
 
+#
+# LZ4
+#
+ExternalProject_Add(lz4
+    URL https://github.com/lz4/lz4/archive/${LZ4_VERSION}.tar.gz
+    URL_MD5 ${LZ4_HASH}
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -C <SOURCE_DIR>/lib
+        CC=${CMAKE_C_COMPILER}
+        CXX=${CMAKE_CXX_COMPILER}
+        CFLAGS=${DEPENDENCY_CFLAGS}
+        CPPFLAGS=${DEPENDENCY_CPPFLAGS}
+        LDFLAGS=${DEPENDENCY_LDFLAGS}
+        BUILD_SHARED=no
+    INSTALL_COMMAND ${CMAKE_MAKE_PROGRAM} -C <SOURCE_DIR>/lib
+        PREFIX=<INSTALL_DIR>
+        BUILD_SHARED=no
+        install
+)
+
 # Get install directories of builded libraries for building
 # tarantool with custon CMAKE_PREFIX_PATH
-foreach(PROJ openssl icu zlib ncurses readline iconv unwind)
+foreach(PROJ openssl icu zlib ncurses readline iconv unwind lz4)
     ExternalProject_Get_Property(${PROJ} install_dir)
     set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH}:${install_dir})
     set(TARANTOOL_DEPENDS ${PROJ} ${TARANTOOL_DEPENDS})

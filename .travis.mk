@@ -87,7 +87,7 @@ deps_tests:
 
 deps_ubuntu_ghactions: deps_tests
 	sudo apt-get update ${APT_EXTRA_FLAGS} && \
-		sudo apt-get install -y -f libreadline-dev libunwind-dev
+		sudo apt-get install -y -f libreadline-dev libunwind-dev liblz4-dev
 
 deps_coverage_ubuntu_ghactions: deps_ubuntu_ghactions
 	sudo apt-get install -y -f lcov
@@ -106,7 +106,8 @@ deps_debian_packages:
 		python python-pip python-setuptools python-dev \
 		python-msgpack python-yaml python-argparse python-six python-gevent \
 		python3 python3-gevent python3-six python3-yaml \
-		lcov ruby clang llvm llvm-dev zlib1g-dev autoconf automake libtool
+		lcov ruby clang llvm llvm-dev zlib1g-dev autoconf automake libtool \
+		liblz4-dev
 
 deps_debian: deps_debian_packages deps_tests
 
@@ -281,7 +282,7 @@ test_debian_docker_luacheck:
 
 test_debian_install_luacheck:
 	sudo apt update -y
-	sudo apt install -y lua5.1 luarocks
+	sudo apt install -y lua5.1 luarocks liblz4-dev
 	sudo luarocks install luacheck
 
 test_debian_luacheck: test_debian_install_luacheck configure_debian
@@ -340,7 +341,7 @@ test_odroid_arm64: deps_odroid_arm64 test_odroid_arm64_no_deps
 # FIXME: Temporary pinned python3 to specific version (i.e. python@3.8) to
 # avoid gevent package installation failure described in gevent/gevent#1721.
 # Revert this back when the issue is resolved.
-OSX_PKGS=openssl@1.1 readline curl icu4c libiconv zlib cmake python@3.8
+OSX_PKGS=openssl@1.1 readline curl icu4c libiconv zlib cmake python@3.8 lz4
 
 deps_osx:
 	# install brew using command from Homebrew repository instructions:

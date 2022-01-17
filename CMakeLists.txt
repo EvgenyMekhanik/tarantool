@@ -420,6 +420,17 @@ if(OPENSSL_USE_STATIC_LIBS)
 endif()
 
 #
+# LZ4
+#
+find_package(LZ4)
+if (LZ4_FOUND)
+    message(STATUS "LZ4 ${LZ4_VERSION} found")
+    include_directories(${LZ4_INCLUDE_DIR})
+else()
+    message(FATAL_ERROR "Could NOT find LZ4 development files (liblz4-dev package)")
+endif()
+
+#
 # Curl
 #
 option(ENABLE_BUNDLED_LIBCURL "Enable building of the bundled libcurl" ON)

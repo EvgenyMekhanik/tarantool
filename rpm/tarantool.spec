@@ -33,6 +33,7 @@ BuildRequires: sed
 BuildRequires: readline-devel
 BuildRequires: openssl-devel
 BuildRequires: libicu-devel
+BuildRequires: lz4-devel
 #BuildRequires: msgpuck-devel
 %if 0%{?fedora} > 0
 # pod2man is needed to build man pages

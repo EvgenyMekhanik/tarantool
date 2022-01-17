@@ -1,0 +1,18 @@
+find_path(LZ4_INCLUDE_DIR NAMES lz4.h)
+
+if(BUILD_STATIC)
+    find_library(LZ4_LIBRARY NAMES
+        ${CMAKE_STATIC_LIBRARY_PREFIX}lz4${CMAKE_STATIC_LIBRARY_SUFFIX})
+else()
+    find_library(LZ4_LIBRARY NAMES
+        ${CMAKE_SHARED_LIBRARY_PREFIX}lz4${CMAKE_SHARED_LIBRARY_SUFFIX})
+endif()
+
+set(LZ4_INCLUDE_DIRS "${LZ4_INCLUDE_DIR}")
+set(LZ4_LIBRARIES "${LZ4_LIBRARY}")
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(LZ4 REQUIRED_VARS
+    LZ4_LIBRARY LZ4_INCLUDE_DIR)
+
+mark_as_advanced(LZ4_LIBRARY LZ4_INCLUDE_DIR)
