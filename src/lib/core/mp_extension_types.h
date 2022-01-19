@@ -45,6 +45,8 @@ enum mp_extension_type {
     MP_UUID = 2,
     MP_ERROR = 3,
     MP_DATETIME = 4,
+    /** Supported only in enterprise version */
+    MP_COMPRESSION = 5,
     mp_extension_type_MAX,
 };
 
