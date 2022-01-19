@@ -37,6 +37,10 @@ set(core_sources
     mp_datetime.c
 )
 
+if(ENABLE_TUPLE_COMPRESSION)
+    list(APPEND core_sources ${TUPLE_COMPRESSION_CORE_SOURCES})
+endif()
+
 if(ENABLE_SSL)
     list(APPEND core_sources ${SSL_SOURCES})
 else()
@@ -66,6 +70,10 @@ target_link_libraries(core salad small uri decNumber bit tzcode
 
 if (ENABLE_BACKTRACE AND NOT TARGET_OS_DARWIN)
     target_link_libraries(core gcc_s ${UNWIND_LIBRARIES})
+endif()
+
+if (ENABLE_TUPLE_COMPRESSION)
+    target_link_libraries(core ${ZSTD_LIBRARIES} ${LZ4_LIBRARIES})
 endif()
 
 # Since fiber.top() introduction, fiber.cc, which is part of core
