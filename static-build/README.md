@@ -29,7 +29,7 @@ CentOS:
 
 ```bash
 yum install -y \
-    git perl gcc cmake make gcc-c++ libstdc++-static \
+    git perl gcc cmake make gcc-c++ libstdc++-static lz4-devel \
     python3-msgpack python3-yaml python3-six python3-gevent
 ```
 
@@ -37,7 +37,7 @@ Ubuntu/Debian:
 
 ```bash
 apt-get install -y \
-    build-essential cmake make coreutils sed \
+    build-essential cmake make coreutils sed liblz4-dev \
     python3 python3-msgpack python3-yaml python3-six python3-gevent
 ```
 

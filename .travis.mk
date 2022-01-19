@@ -323,7 +323,7 @@ test_oos_build:
 deps_odroid_arm64:
 	sudo apt update -y && sudo apt -y install git build-essential cmake make zlib1g-dev \
 		libreadline-dev libncurses5-dev libssl-dev libunwind-dev libicu-dev python3 \
-		python3-six python3-gevent python3-pip
+		python3-six python3-gevent python3-pip liblz4-dev
 
 build_odroid_arm64:
 	cmake . -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} ${CMAKE_EXTRA_PARAMS}
