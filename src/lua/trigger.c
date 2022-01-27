@@ -92,6 +92,11 @@ lbox_trigger_run(struct trigger *ptr, void *event)
 	int nargs = 0;
 	if (trigger->push_event != NULL) {
 		nargs = trigger->push_event(L, event);
+		if (nargs < 0) {
+			lua_settop(L, top);
+			luaL_unref(tarantool_L, LUA_REGISTRYINDEX, coro_ref);
+			return -1;
+		}
 	}
 	/*
 	 * There are two cases why we can't access `trigger` after
