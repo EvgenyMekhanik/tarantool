@@ -31,6 +31,16 @@ local function ifdef_feedback(value)
     return private.feedback_daemon ~= nil and value or nil
 end
 
+--
+-- When audit log is disabled, every single mentioning of it should
+-- be eliminated. Even box.cfg{} should not accept any
+-- 'audit_*' parameters as valid. This is why they are set to
+-- nil, when the audit log does not exist.
+--
+local function ifdef_audit(value)
+    return private.audit ~= nil and value or nil
+end
+
 local ifdef_feedback_set_params =
     private.feedback_daemon ~= nil and
     private.feedback_daemon.set_feedback_params or nil
@@ -179,9 +189,14 @@ local template_cfg = {
     log_level           = 'module',
     log_format          = 'module',
 
+<<<<<<< HEAD
     audit_log           = 'string',
     audit_nonblock      = 'boolean',
     audit_format        = 'string',
+=======
+    audit_log           = ifdef_audit('string'),
+    audit_nonblock      = ifdef_audit('boolean'),
+>>>>>>> e6f447627... Add stubs for audit log improvements
 
     io_collect_interval = 'number',
     readahead           = 'number',
