@@ -79,7 +79,12 @@ local default_cfg = {
 
     audit_log           = nil,
     audit_nonblock      = true,
+<<<<<<< HEAD
     audit_format        = 'json',
+=======
+    audit_filter        = {'compatibility'},
+    audit_format        = 'plain',
+>>>>>>> 50e549771... TMP
 
     io_collect_interval = nil,
     readahead           = 16320,
@@ -196,7 +201,12 @@ local template_cfg = {
 =======
     audit_log           = ifdef_audit('string'),
     audit_nonblock      = ifdef_audit('boolean'),
+<<<<<<< HEAD
 >>>>>>> e6f447627... Add stubs for audit log improvements
+=======
+    audit_filter        = ifdef_audit('table'),
+    audit_format        = ifdef_audit('string'),
+>>>>>>> 50e549771... TMP
 
     io_collect_interval = 'number',
     readahead           = 'number',
@@ -251,9 +261,61 @@ local function normalize_uri_list_for_replication(port_list)
     return {port_list}
 end
 
+local function normalize_audit_filter(audit_filter)
+    local event_filters = {
+        ["eval"] = true, ["ddl_changed"] = true,
+        ["space_select"] = true, ["space_insert"] = true,
+        ["space_replace"] = true, ["space_update"] = true,
+        ["space_upsert"] = true, ["space_delete"] = true,
+        ["space_get"] = true, ["space_put"] = true,
+        ["auth_user"] = true, ["no_auth_user"] = true,
+        ["close_connect"] = true, ["user_created"] = true,
+        ["user_deleted"] = true, ["role_created"] = true,
+        ["role_deleted"] = true, ["user_enabled"] = true,
+        ["user_disabled"] = true, ["user_grant_rights"] = true,
+        ["role_grant_rights"] = true, ["password_change"] = true,
+        ["access_denied"] = true
+    }
+    local event_group_filters = {
+        ["data_operations"] = {
+            ["space_select"] = true, ["space_insert"] = true,
+            ["space_replace"] = true, ["space_update"] = true,
+            ["space_upsert"] = true, ["space_delete"] = true,
+            ["space_get"] = true, ["space_put"] = true
+        },
+        ["compatibility"] = {
+            ["auth_user"] = true, ["no_auth_user"] = true,
+            ["close_connect"] = true, ["user_created"] = true,
+            ["user_deleted"] = true, ["role_created"] = true,
+            ["role_deleted"] = true, ["user_enabled"] = true,
+            ["user_disabled"] = true, ["user_grant_rights"] = true,
+            ["role_grant_rights"] = true, ["password_change"] = true,
+            ["access_denied"] = true
+        },
+        ["custom"] = {
+            ["custom"] = true
+        },
+        ["all"] = event_filters
+    }
+    local filters = {}
+    for _, filter in pairs(audit_filter) do
+        if event_filters[filter] or string.find(filter, "^custom_") then
+            filters[filter] = true
+        elseif event_group_filters[filter] then
+            for key, _ in pairs(event_group_filters[filter]) do
+                filters[key] = true
+            end
+        else
+            box.error(box.error.CFG, 'audit_filter' , "unexpected value")
+        end
+    end
+    return filters
+end
+
 -- options that require special handling
 local modify_cfg = {
     replication        = normalize_uri_list_for_replication,
+    audit_filter       = normalize_audit_filter,
 }
 
 local function purge_password_from_uri(uri)

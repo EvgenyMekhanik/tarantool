@@ -1247,6 +1247,7 @@ box_check_txn_timeout(void)
 }
 
 static int
+<<<<<<< HEAD
 box_check_audit_format(void)
 {
 	const char *format = cfg_gets("audit_format");
@@ -1258,6 +1259,22 @@ box_check_audit_format(void)
 		return -1;
 	}
 	return 0;
+=======
+box_check_audit_format()
+{
+	const char *audit_formats[] = { "plain", "json", "csv" };
+	const char *audit_format = cfg_gets("audit_format");
+	if (audit_format == NULL)
+		goto error;
+	for (unsigned i = 0; i < lengthof(audit_formats); i++) {
+		if (strcmp(audit_format, audit_formats[i]) == 0)
+			return 0;
+	}
+error:
+	diag_set(ClientError, ER_CFG, "audit_format",
+		 "should be 'plain', 'json' or 'csv'");
+	return -1;
+>>>>>>> 50e549771... TMP
 }
 
 void
