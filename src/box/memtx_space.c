@@ -43,6 +43,7 @@
 #include "memtx_engine.h"
 #include "column_mask.h"
 #include "sequence.h"
+#include "tuple_compression.h"
 
 /*
  * Yield every 1K tuples while building a new index or checking
@@ -342,16 +343,33 @@ memtx_space_execute_replace(struct space *space, struct txn *txn,
 	if (stmt->new_tuple == NULL)
 		return -1;
 	tuple_ref(stmt->new_tuple);
+	struct tuple *new_tuple = stmt->new_tuple;
+	if (space->format->is_compressed) {
+		new_tuple = memtx_tuple_compress(stmt->new_tuple);
+		if (new_tuple == NULL)
+			return -1;
+	}
+	tuple_ref(new_tuple);
 
 	if (mode == DUP_INSERT)
 		stmt->does_require_old_tuple = true;
 
-	if (memtx_space->replace(space, NULL, stmt->new_tuple,
-				 mode, &stmt->old_tuple) != 0)
+	struct tuple *old_tuple;
+	if (memtx_space->replace(space, NULL, new_tuple,
+				 mode, &old_tuple) != 0) {
+		tuple_unref(new_tuple);
 		return -1;
+	}
 	stmt->engine_savepoint = stmt;
 	/** The new tuple is referenced by the primary key. */
 	*result = stmt->new_tuple;
+	txn_stmt_prepare_memtx_rollback_info(stmt, old_tuple, new_tuple);
+	if (old_tuple != NULL) {
+		stmt->old_tuple = tuple_maybe_decompress(old_tuple);
+		if (stmt->old_tuple == NULL)
+			return -1;
+		tuple_ref(stmt->old_tuple);
+	}
 	return 0;
 }
 
@@ -381,10 +399,18 @@ memtx_space_execute_delete(struct space *space, struct txn *txn,
 
 	if (old_tuple != NULL &&
 	    memtx_space->replace(space, old_tuple, NULL,
-				 DUP_REPLACE_OR_INSERT, &stmt->old_tuple) != 0)
+				 DUP_REPLACE_OR_INSERT, &old_tuple) != 0)
 		return -1;
 	stmt->engine_savepoint = stmt;
-	*result = stmt->old_tuple;
+	txn_stmt_prepare_memtx_rollback_info(stmt, old_tuple, NULL);
+	*result = old_tuple;
+	if (*result != NULL) {
+		*result = tuple_maybe_decompress(*result);
+		if (*result == NULL)
+			return -1;
+		stmt->old_tuple = *result;
+		tuple_ref(stmt->old_tuple);
+	}
 	return 0;
 }
 
@@ -411,14 +437,20 @@ memtx_space_execute_update(struct space *space, struct txn *txn,
 		return 0;
 	}
 
+	struct tuple *decompressed = tuple_maybe_decompress(old_tuple);
+	if (decompressed == NULL)
+		return -1;
+	tuple_ref(decompressed);
+
 	/* Update the tuple; legacy, request ops are in request->tuple */
 	uint32_t new_size = 0, bsize;
 	struct tuple_format *format = space->format;
-	const char *old_data = tuple_data_range(old_tuple, &bsize);
+	const char *old_data = tuple_data_range(decompressed, &bsize);
 	const char *new_data =
 		xrow_update_execute(request->tuple, request->tuple_end,
 				    old_data, old_data + bsize, format,
 				    &new_size, request->index_base, NULL);
+	tuple_unref(decompressed);
 	if (new_data == NULL)
 		return -1;
 
@@ -428,14 +460,30 @@ memtx_space_execute_update(struct space *space, struct txn *txn,
 	if (stmt->new_tuple == NULL)
 		return -1;
 	tuple_ref(stmt->new_tuple);
+	struct tuple *new_tuple = stmt->new_tuple;
+	if (space->format->is_compressed) {
+		new_tuple = memtx_tuple_compress(stmt->new_tuple);
+		if (new_tuple == NULL)
+			return -1;
+	}
+	tuple_ref(new_tuple);
 
 	stmt->does_require_old_tuple = true;
 
-	if (memtx_space->replace(space, old_tuple, stmt->new_tuple,
-				 DUP_REPLACE, &stmt->old_tuple) != 0)
+	if (memtx_space->replace(space, old_tuple, new_tuple,
+				 DUP_REPLACE, &old_tuple) != 0) {
+		tuple_unref(new_tuple);
 		return -1;
+	}
 	stmt->engine_savepoint = stmt;
 	*result = stmt->new_tuple;
+	txn_stmt_prepare_memtx_rollback_info(stmt, old_tuple, new_tuple);
+	if (old_tuple != NULL) {
+		stmt->old_tuple = tuple_maybe_decompress(old_tuple);
+		if (stmt->old_tuple == NULL)
+			return -1;
+		tuple_ref(stmt->old_tuple);
+	}
 	return 0;
 }
 
@@ -501,8 +549,13 @@ memtx_space_execute_upsert(struct space *space, struct txn *txn,
 			return -1;
 		tuple_ref(stmt->new_tuple);
 	} else {
+		struct tuple *decompressed = tuple_maybe_decompress(old_tuple);
+		if (decompressed == NULL)
+			return -1;
+		tuple_ref(decompressed);
+
 		uint32_t new_size = 0, bsize;
-		const char *old_data = tuple_data_range(old_tuple, &bsize);
+		const char *old_data = tuple_data_range(decompressed, &bsize);
 		/*
 		 * Update the tuple.
 		 * xrow_upsert_execute() fails on totally wrong
@@ -516,6 +569,7 @@ memtx_space_execute_upsert(struct space *space, struct txn *txn,
 					    format, &new_size,
 					    request->index_base, false,
 					    &column_mask);
+		tuple_unref(decompressed);
 		if (new_data == NULL)
 			return -1;
 
@@ -537,8 +591,17 @@ memtx_space_execute_upsert(struct space *space, struct txn *txn,
 			diag_log();
 			tuple_unref(stmt->new_tuple);
 			stmt->new_tuple = NULL;
+			stmt->engine_savepoint = stmt;
+			return 0;
 		}
 	}
+	struct tuple *new_tuple = stmt->new_tuple;
+	if (space->format->is_compressed) {
+		new_tuple = memtx_tuple_compress(stmt->new_tuple);
+		if (new_tuple == NULL)
+			return -1;
+	}
+	tuple_ref(new_tuple);
 
 	stmt->does_require_old_tuple = true;
 
@@ -548,11 +611,19 @@ memtx_space_execute_upsert(struct space *space, struct txn *txn,
 	 * we checked this case explicitly and skipped the upsert
 	 * above.
 	 */
-	if (stmt->new_tuple != NULL &&
-	    memtx_space->replace(space, old_tuple, stmt->new_tuple,
-				 DUP_REPLACE_OR_INSERT, &stmt->old_tuple) != 0)
+	if (memtx_space->replace(space, old_tuple, new_tuple,
+				 DUP_REPLACE_OR_INSERT, &old_tuple) != 0) {
+		tuple_unref(new_tuple);
 		return -1;
+	}
 	stmt->engine_savepoint = stmt;
+	txn_stmt_prepare_memtx_rollback_info(stmt, old_tuple, new_tuple);
+	if (old_tuple != NULL) {
+		stmt->old_tuple = tuple_maybe_decompress(old_tuple);
+		if (stmt->old_tuple == NULL)
+			return -1;
+		tuple_ref(stmt->old_tuple);
+	}
 	/* Return nothing: UPSERT does not return data. */
 	return 0;
 }
@@ -895,7 +966,7 @@ memtx_check_on_replace(struct trigger *trigger, void *event)
 			  state->cmp_def) < 0)
 		return 0;
 
-	state->rc = tuple_validate(state->format, stmt->new_tuple);
+	state->rc = memtx_tuple_validate(state->format, stmt->new_tuple);
 	if (state->rc != 0)
 		diag_move(diag_get(), &state->diag);
 	return 0;
@@ -938,7 +1009,7 @@ memtx_space_check_format(struct space *space, struct tuple_format *format)
 		 * Check that the tuple is OK according to the
 		 * new format.
 		 */
-		rc = tuple_validate(format, tuple);
+		rc = memtx_tuple_validate(format, tuple);
 		if (rc != 0)
 			break;
 
@@ -1013,7 +1084,7 @@ memtx_build_on_replace_rollback(struct trigger *trigger, void *event)
 	 */
 	assert(stmt != NULL);
 	assert(stmt->old_tuple == NULL ||
-	       tuple_validate(state->format, stmt->old_tuple) == 0);
+	       memtx_tuple_validate(state->format, stmt->old_tuple) == 0);
 
 	struct tuple *delete = NULL;
 	struct tuple *successor = NULL;
@@ -1070,7 +1141,7 @@ memtx_build_on_replace(struct trigger *trigger, void *event)
 		return 0;
 
 	if (stmt->new_tuple != NULL &&
-	    tuple_validate(state->format, stmt->new_tuple) != 0) {
+	    memtx_tuple_validate(state->format, stmt->new_tuple) != 0) {
 		state->rc = -1;
 		diag_move(diag_get(), &state->diag);
 		return 0;
@@ -1220,7 +1291,7 @@ memtx_space_build_index(struct space *src_space, struct index *new_index,
 		 * Check that the tuple is OK according to the
 		 * new format.
 		 */
-		rc = tuple_validate(new_format, tuple);
+		rc = memtx_tuple_validate(new_format, tuple);
 		if (rc != 0)
 			break;
 		/*

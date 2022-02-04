@@ -191,6 +191,15 @@ enum txn_status {
 };
 
 /**
+ * Structure containing pointers to the tuples,
+ * that are used in rollback in memxt engine.
+ */
+struct memtx_rollback_info {
+	struct tuple *old_tuple;
+	struct tuple *new_tuple;
+};
+
+/**
  * A single statement of a multi-statement
  * transaction: undo and redo info.
  */
@@ -205,6 +214,7 @@ struct txn_stmt {
 	struct space *space;
 	struct tuple *old_tuple;
 	struct tuple *new_tuple;
+	struct memtx_rollback_info rollback_info;
 	/**
 	 * If new_tuple != NULL and this transaction was not prepared,
 	 * this member holds added story of the new_tuple.
@@ -637,6 +647,15 @@ txn_stmt_on_rollback(struct txn_stmt *stmt, struct trigger *trigger)
 	/* Statement triggers are private and never have anything to free. */
 	assert(trigger->destroy == NULL);
 	trigger_add(&stmt->on_rollback, trigger);
+}
+
+static inline void
+txn_stmt_prepare_memtx_rollback_info(struct txn_stmt *stmt,
+				     struct tuple *old_tuple,
+				     struct tuple *new_tuple)
+{
+	stmt->rollback_info.old_tuple = old_tuple;
+	stmt->rollback_info.new_tuple = new_tuple;
 }
 
 /*

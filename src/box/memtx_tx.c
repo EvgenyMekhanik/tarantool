@@ -1614,9 +1614,7 @@ memtx_tx_history_add_stmt(struct txn_stmt *stmt, struct tuple *old_tuple,
 	assert(stmt != NULL);
 	assert(stmt->space != NULL);
 	assert(new_tuple != NULL || old_tuple != NULL);
-	assert(new_tuple == stmt->new_tuple);
 	assert(new_tuple == NULL || !new_tuple->is_dirty);
-	assert(result == &stmt->old_tuple);
 
 	if (new_tuple != NULL)
 		return memtx_tx_history_add_insert_stmt(stmt, old_tuple,
