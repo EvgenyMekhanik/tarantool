@@ -282,6 +282,13 @@ extern void
 (*memtx_free)(void *ptr);
 
 /**
+ * Compress @a tuple according its format. Return new allocated
+ * compressed tuple.
+ */
+struct tuple *
+memtx_tuple_compress(struct tuple *tuple);
+
+/**
  * Returns the size of an allocation done with memtx_alloc.
  * (The size is stored before the data.)
  */
@@ -322,6 +329,19 @@ memtx_index_def_change_requires_rebuild(struct index *index,
 
 void
 memtx_set_tuple_format_vtab(const char *allocator_name);
+
+/**
+ * Check tuple data correspondence to the space format.
+ * Same as simple tuple_validate function, but can work
+ * with compressed tuples.
+ * @param format Format to which the tuple must match.
+ * @param tuple  Tuple to validate.
+ *
+ * @retval  0 The tuple is valid.
+ * @retval -1 The tuple is invalid.
+ */
+int
+memtx_tuple_validate(struct tuple_format *format, struct tuple *tuple);
 
 #if defined(__cplusplus)
 } /* extern "C" */

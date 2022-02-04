@@ -55,6 +55,7 @@
 #include "fk_constraint.h"
 #include "mpstream/mpstream.h"
 #include "sql_stmt_cache.h"
+#include "tuple_compression.h"
 
 static sql *db = NULL;
 
@@ -920,15 +921,18 @@ cursor_advance(BtCursor *pCur, int *pRes)
 	struct tuple *tuple;
 	if (iterator_next(pCur->iter, &tuple) != 0)
 		return -1;
-	if (pCur->last_tuple)
-		box_tuple_unref(pCur->last_tuple);
 	if (tuple) {
+		tuple = tuple_maybe_decompress(tuple);
+		if (tuple == NULL)
+			return -1;
 		box_tuple_ref(tuple);
 		*pRes = 0;
 	} else {
 		pCur->eState = CURSOR_INVALID;
 		*pRes = 1;
 	}
+	if (pCur->last_tuple)
+		box_tuple_unref(pCur->last_tuple);
 	pCur->last_tuple = tuple;
 	return 0;
 }

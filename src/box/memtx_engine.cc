@@ -52,6 +52,7 @@
 #include "raft.h"
 #include "txn_limbo.h"
 #include "memtx_allocator.h"
+#include "tuple_compression.h"
 
 #include <type_traits>
 
@@ -78,6 +79,9 @@ void *
 (*memtx_alloc)(uint32_t size);
 void
 (*memtx_free)(void *ptr);
+static struct tuple *
+(*memtx_compressed_tuple_new)(struct tuple_format *format, const char *data,
+			      const char *end);
 
 template <class ALLOC>
 static void *
@@ -101,11 +105,17 @@ memtx_free_impl(void *ptr)
 }
 
 template <class ALLOC>
+static inline struct tuple *
+memtx_compressed_tuple_new_impl(struct tuple_format *format, const char *data,
+				const char *end);
+
+template <class ALLOC>
 static void
 memtx_alloc_init(void)
 {
 	memtx_alloc = memtx_alloc_impl<ALLOC>;
 	memtx_free = memtx_free_impl<ALLOC>;
+	memtx_compressed_tuple_new = memtx_compressed_tuple_new_impl<ALLOC>;
 }
 
 static int
@@ -1171,6 +1181,20 @@ memtx_set_tuple_format_vtab(const char *allocator_name)
 	}
 }
 
+int
+memtx_tuple_validate(struct tuple_format *format, struct tuple *tuple)
+{
+	if (tuple_is_compressed(tuple)) {
+		tuple = tuple_decompress(tuple);
+		if (tuple == NULL)
+			return -1;
+	}
+	tuple_ref(tuple);
+	int rc = tuple_validate_raw(format, tuple_data(tuple));
+	tuple_unref(tuple);
+	return rc;
+}
+
 struct memtx_engine *
 memtx_engine_new(const char *snap_dirname, bool force_recovery,
 		 uint64_t tuple_arena_max_size, uint32_t objsize_min,
@@ -1335,8 +1359,9 @@ memtx_leave_delayed_free_mode(struct memtx_engine *memtx)
 }
 
 template<class ALLOC>
-struct tuple *
-memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
+static struct tuple *
+memtx_tuple_new_impl(struct tuple_format *format, const char *data,
+		     const char *end, bool validate)
 {
 	struct memtx_engine *memtx = (struct memtx_engine *)format->engine;
 	assert(mp_typeof(*data) == MP_ARRAY);
@@ -1348,7 +1373,7 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 	uint32_t data_offset, field_map_size;
 	char *raw;
 	bool make_compact;
-	if (tuple_field_map_create(format, data, true, &builder) != 0)
+	if (tuple_field_map_create(format, data, validate, &builder) != 0)
 		goto end;
 	field_map_size = field_map_build_size(&builder);
 	/*
@@ -1404,6 +1429,49 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 end:
 	region_truncate(region, region_svp);
 	return tuple;
+}
+
+template<class ALLOC>
+static inline struct tuple *
+memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
+{
+	return memtx_tuple_new_impl<ALLOC>(format, data, end, true);
+}
+
+template<class ALLOC>
+static inline struct tuple *
+memtx_compressed_tuple_new_impl(struct tuple_format *format, const char *data,
+				const char *end)
+{
+	struct field_map_builder builder;
+	/**
+	 * Validate field map for uncompressed data, to avoid doing
+	 * this for compressed data.
+	 */
+	if (tuple_field_map_create(format, data, true, &builder) != 0)
+		return NULL;
+	char *cdata, *cend;
+	size_t region_svp = region_used(&fiber()->gc);
+	cdata = (char *)region_alloc(&fiber()->gc, end - data);
+	if (cdata == NULL) {
+		diag_set(OutOfMemory, end - data, "region_alloc", "cdata");
+		return NULL;
+	}
+	tuple_compress_raw(format, data, end, &cdata, &cend);
+	struct tuple *tuple =
+		memtx_tuple_new_impl<ALLOC>(format, cdata, cend, false);
+	region_truncate(&fiber()->gc, region_svp);
+	return tuple;
+}
+
+struct tuple *
+memtx_tuple_compress(struct tuple *tuple)
+{
+	struct tuple_format *format = tuple_format(tuple);
+	assert(format->is_compressed);
+	uint32_t bsize;
+	const char *data = tuple_data_range(tuple, &bsize);
+	return memtx_compressed_tuple_new(format, data, data + bsize);
 }
 
 template<class ALLOC>

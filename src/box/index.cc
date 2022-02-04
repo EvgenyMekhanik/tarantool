@@ -39,6 +39,7 @@
 #include "rmean.h"
 #include "info/info.h"
 #include "memtx_tx.h"
+#include "tuple_compression.h"
 
 /* {{{ Utilities. **********************************************/
 
@@ -178,6 +179,18 @@ check_index(uint32_t space_id, uint32_t index_id,
 	return 0;
 }
 
+static inline int
+prepare_result_tuple(box_tuple_t **result)
+{
+	if (*result != NULL) {
+		*result = tuple_maybe_decompress(*result);
+		if (*result == NULL)
+			return -1;
+		tuple_bless(*result);
+	}
+	return 0;
+}
+
 /* }}} */
 
 /* {{{ Public API */
@@ -216,8 +229,8 @@ box_index_random(uint32_t space_id, uint32_t index_id, uint32_t rnd,
 	/* No tx management, random() is for approximation anyway. */
 	if (index_random(index, rnd, result) != 0)
 		return -1;
-	if (*result != NULL)
-		tuple_bless(*result);
+	if (prepare_result_tuple(result) != 0)
+		return -1;
 	return 0;
 }
 
@@ -250,8 +263,8 @@ box_index_get(uint32_t space_id, uint32_t index_id, const char *key,
 	txn_commit_ro_stmt(txn, &svp);
 	/* Count statistics. */
 	rmean_collect(rmean_box, IPROTO_SELECT, 1);
-	if (*result != NULL)
-		tuple_bless(*result);
+	if (prepare_result_tuple(result) != 0)
+		return -1;
 	return 0;
 }
 
@@ -283,8 +296,8 @@ box_index_min(uint32_t space_id, uint32_t index_id, const char *key,
 		return -1;
 	}
 	txn_commit_ro_stmt(txn, &svp);
-	if (*result != NULL)
-		tuple_bless(*result);
+	if (prepare_result_tuple(result) != 0)
+		return -1;
 	return 0;
 }
 
@@ -316,8 +329,8 @@ box_index_max(uint32_t space_id, uint32_t index_id, const char *key,
 		return -1;
 	}
 	txn_commit_ro_stmt(txn, &svp);
-	if (*result != NULL)
-		tuple_bless(*result);
+	if (prepare_result_tuple(result) != 0)
+		return -1;
 	return 0;
 }
 
@@ -399,8 +412,8 @@ box_iterator_next(box_iterator_t *itr, box_tuple_t **result)
 	assert(result != NULL);
 	if (iterator_next(itr, result) != 0)
 		return -1;
-	if (*result != NULL)
-		tuple_bless(*result);
+	if (prepare_result_tuple(result) != 0)
+		return -1;
 	return 0;
 }
 
