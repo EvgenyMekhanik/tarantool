@@ -357,7 +357,7 @@ tree_iterator_dummie(struct iterator *iterator, struct tuple **ret)
 
 template <bool USE_HINT>
 static int
-tree_iterator_next_base(struct iterator *iterator, struct tuple **ret)
+tree_iterator_next_raw_base(struct iterator *iterator, struct tuple **ret)
 {
 	struct memtx_tree_index<USE_HINT> *index =
 		(struct memtx_tree_index<USE_HINT> *)iterator->index;
@@ -375,8 +375,10 @@ tree_iterator_next_base(struct iterator *iterator, struct tuple **ret)
 		memtx_tree_iterator_get_elem(&index->tree, &it->tree_iterator);
 	tree_iterator_set_current<USE_HINT>(it, res);
 	*ret = it->current.tuple;
-	if (*ret == NULL)
+	if (*ret == NULL) {
+		iterator->next_raw = tree_iterator_dummie;
 		iterator->next = tree_iterator_dummie;
+	}
 	struct index *idx = iterator->index;
 	struct space *space = space_by_id(iterator->space_id);
 
@@ -393,7 +395,7 @@ tree_iterator_next_base(struct iterator *iterator, struct tuple **ret)
 
 template <bool USE_HINT>
 static int
-tree_iterator_prev_base(struct iterator *iterator, struct tuple **ret)
+tree_iterator_prev_raw_base(struct iterator *iterator, struct tuple **ret)
 {
 	struct memtx_tree_index<USE_HINT> *index =
 		(struct memtx_tree_index<USE_HINT> *)iterator->index;
@@ -412,8 +414,10 @@ tree_iterator_prev_base(struct iterator *iterator, struct tuple **ret)
 		memtx_tree_iterator_get_elem(&index->tree, &it->tree_iterator);
 	tree_iterator_set_current<USE_HINT>(it, res);
 	*ret = it->current.tuple;
-	if (*ret == NULL)
+	if (*ret == NULL) {
+		iterator->next_raw = tree_iterator_dummie;
 		iterator->next = tree_iterator_dummie;
+	}
 	struct index *idx = iterator->index;
 	struct space *space = space_by_id(iterator->space_id);
 
@@ -431,7 +435,7 @@ tree_iterator_prev_base(struct iterator *iterator, struct tuple **ret)
 
 template <bool USE_HINT>
 static int
-tree_iterator_next_equal_base(struct iterator *iterator, struct tuple **ret)
+tree_iterator_next_equal_raw_base(struct iterator *iterator, struct tuple **ret)
 {
 	struct memtx_tree_index<USE_HINT> *index =
 		(struct memtx_tree_index<USE_HINT> *)iterator->index;
@@ -457,6 +461,7 @@ tree_iterator_next_equal_base(struct iterator *iterator, struct tuple **ret)
 				   it->key_data.hint,
 				   index->base.def->key_def) != 0) {
 		tree_iterator_set_current<USE_HINT>(it, NULL);
+		iterator->next_raw = tree_iterator_dummie;
 		iterator->next = tree_iterator_dummie;
 		*ret = NULL;
 		/*
@@ -487,7 +492,7 @@ tree_iterator_next_equal_base(struct iterator *iterator, struct tuple **ret)
 
 template <bool USE_HINT>
 static int
-tree_iterator_prev_equal_base(struct iterator *iterator, struct tuple **ret)
+tree_iterator_prev_equal_raw_base(struct iterator *iterator, struct tuple **ret)
 {
 	struct memtx_tree_index<USE_HINT> *index =
 		(struct memtx_tree_index<USE_HINT> *)iterator->index;
@@ -514,6 +519,7 @@ tree_iterator_prev_equal_base(struct iterator *iterator, struct tuple **ret)
 				   it->key_data.hint,
 				   index->base.def->key_def) != 0) {
 		tree_iterator_set_current<USE_HINT>(it, NULL);
+		iterator->next_raw = tree_iterator_dummie;
 		iterator->next = tree_iterator_dummie;
 		*ret = NULL;
 
@@ -576,10 +582,10 @@ name(struct iterator *iterator, struct tuple **ret)				\
 }										\
 struct forgot_to_add_semicolon
 
-WRAP_ITERATOR_METHOD(tree_iterator_next);
-WRAP_ITERATOR_METHOD(tree_iterator_prev);
-WRAP_ITERATOR_METHOD(tree_iterator_next_equal);
-WRAP_ITERATOR_METHOD(tree_iterator_prev_equal);
+WRAP_ITERATOR_METHOD(tree_iterator_next_raw);
+WRAP_ITERATOR_METHOD(tree_iterator_prev_raw);
+WRAP_ITERATOR_METHOD(tree_iterator_next_equal_raw);
+WRAP_ITERATOR_METHOD(tree_iterator_prev_equal_raw);
 
 #undef WRAP_ITERATOR_METHOD
 
@@ -590,21 +596,21 @@ tree_iterator_set_next_method(struct tree_iterator<USE_HINT> *it)
 	assert(it->current.tuple != NULL);
 	switch (it->type) {
 	case ITER_EQ:
-		it->base.next = tree_iterator_next_equal<USE_HINT>;
+		it->base.next_raw = tree_iterator_next_equal_raw<USE_HINT>;
 		break;
 	case ITER_REQ:
-		it->base.next = tree_iterator_prev_equal<USE_HINT>;
+		it->base.next_raw = tree_iterator_prev_equal_raw<USE_HINT>;
 		break;
 	case ITER_ALL:
-		it->base.next = tree_iterator_next<USE_HINT>;
+		it->base.next_raw = tree_iterator_next_raw<USE_HINT>;
 		break;
 	case ITER_LT:
 	case ITER_LE:
-		it->base.next = tree_iterator_prev<USE_HINT>;
+		it->base.next_raw = tree_iterator_prev_raw<USE_HINT>;
 		break;
 	case ITER_GE:
 	case ITER_GT:
-		it->base.next = tree_iterator_next<USE_HINT>;
+		it->base.next_raw = tree_iterator_next_raw<USE_HINT>;
 		break;
 	default:
 		/* The type was checked in initIterator */
@@ -614,13 +620,13 @@ tree_iterator_set_next_method(struct tree_iterator<USE_HINT> *it)
 
 template <bool USE_HINT>
 static int
-tree_iterator_start(struct iterator *iterator, struct tuple **ret)
+tree_iterator_start_raw(struct iterator *iterator, struct tuple **ret)
 {
 	*ret = NULL;
 	struct memtx_tree_index<USE_HINT> *index =
 		(struct memtx_tree_index<USE_HINT> *)iterator->index;
 	struct tree_iterator<USE_HINT> *it = get_tree_iterator<USE_HINT>(iterator);
-	it->base.next = tree_iterator_dummie;
+	it->base.next_raw = tree_iterator_dummie;
 	memtx_tree_t<USE_HINT> *tree = &index->tree;
 	enum iterator_type type = it->type;
 	struct txn *txn = in_txn();
@@ -715,7 +721,7 @@ tree_iterator_start(struct iterator *iterator, struct tuple **ret)
 	bool is_rw = txn != NULL;
 	*ret = memtx_tx_tuple_clarify(txn, space, *ret, idx, mk_index, is_rw);
 	if (*ret == NULL) {
-		return iterator->next(iterator, ret);
+		return iterator->next_raw(iterator, ret);
 	} else {
 		tree_iterator_set_current_tuple(it, *ret);
 	}
@@ -867,7 +873,7 @@ memtx_tree_index_random(struct index *base, uint32_t rnd, struct tuple **result)
 		(struct memtx_tree_index<USE_HINT> *)base;
 	struct memtx_tree_data<USE_HINT> *res = memtx_tree_random(&index->tree, rnd);
 	*result = res != NULL ? res->tuple : NULL;
-	return 0;
+	return memtx_prepare_result_tuple(result);
 }
 
 template <bool USE_HINT>
@@ -882,8 +888,8 @@ memtx_tree_index_count(struct index *base, enum iterator_type type,
 
 template <bool USE_HINT>
 static int
-memtx_tree_index_get(struct index *base, const char *key,
-		     uint32_t part_count, struct tuple **result)
+memtx_tree_index_get_raw(struct index *base, const char *key,
+			 uint32_t part_count, struct tuple **result)
 {
 	assert(base->def->opts.is_unique &&
 	       part_count == base->def->key_def->part_count);
@@ -1426,7 +1432,8 @@ memtx_tree_index_create_iterator(struct index *base, enum iterator_type type,
 	}
 	iterator_create(&it->base, base);
 	it->pool = &memtx->iterator_pool;
-	it->base.next = tree_iterator_start<USE_HINT>;
+	it->base.next_raw = tree_iterator_start_raw<USE_HINT>;
+	it->base.next = memtx_iterator_next;
 	it->base.free = tree_iterator_free<USE_HINT>;
 	it->type = type;
 	it->key_data.key = key;
@@ -1750,7 +1757,8 @@ static const struct index_vtab memtx_tree_no_hint_index_vtab = {
 	/* .max = */ generic_index_max,
 	/* .random = */ memtx_tree_index_random<false>,
 	/* .count = */ memtx_tree_index_count<false>,
-	/* .get = */ memtx_tree_index_get<false>,
+	/* .get_raw = */ memtx_tree_index_get_raw<false>,
+	/* .get = */ memtx_index_get,
 	/* .replace = */ memtx_tree_index_replace<false>,
 	/* .create_iterator = */ memtx_tree_index_create_iterator<false>,
 	/* .create_snapshot_iterator = */
@@ -1780,7 +1788,8 @@ static const struct index_vtab memtx_tree_use_hint_index_vtab = {
 	/* .max = */ generic_index_max,
 	/* .random = */ memtx_tree_index_random<true>,
 	/* .count = */ memtx_tree_index_count<true>,
-	/* .get = */ memtx_tree_index_get<true>,
+	/* .get_raw = */ memtx_tree_index_get_raw<true>,
+	/* .get = */ memtx_index_get,
 	/* .replace = */ memtx_tree_index_replace<true>,
 	/* .create_iterator = */ memtx_tree_index_create_iterator<true>,
 	/* .create_snapshot_iterator = */
@@ -1810,7 +1819,8 @@ static const struct index_vtab memtx_tree_index_multikey_vtab = {
 	/* .max = */ generic_index_max,
 	/* .random = */ memtx_tree_index_random<true>,
 	/* .count = */ memtx_tree_index_count<true>,
-	/* .get = */ memtx_tree_index_get<true>,
+	/* .get_raw = */ memtx_tree_index_get_raw<true>,
+	/* .get = */ memtx_index_get,
 	/* .replace = */ memtx_tree_index_replace_multikey,
 	/* .create_iterator = */ memtx_tree_index_create_iterator<true>,
 	/* .create_snapshot_iterator = */
@@ -1840,7 +1850,8 @@ static const struct index_vtab memtx_tree_func_index_vtab = {
 	/* .max = */ generic_index_max,
 	/* .random = */ memtx_tree_index_random<true>,
 	/* .count = */ memtx_tree_index_count<true>,
-	/* .get = */ memtx_tree_index_get<true>,
+	/* .get_raw = */ memtx_tree_index_get_raw<true>,
+	/* .get = */ memtx_index_get,
 	/* .replace = */ memtx_tree_func_index_replace,
 	/* .create_iterator = */ memtx_tree_index_create_iterator<true>,
 	/* .create_snapshot_iterator = */
@@ -1876,6 +1887,7 @@ static const struct index_vtab memtx_tree_disabled_index_vtab = {
 	/* .max = */ generic_index_max,
 	/* .random = */ generic_index_random,
 	/* .count = */ generic_index_count,
+	/* .get_raw = */ generic_index_get_raw,
 	/* .get = */ generic_index_get,
 	/* .replace = */ disabled_index_replace,
 	/* .create_iterator = */ generic_index_create_iterator,

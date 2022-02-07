@@ -444,6 +444,7 @@ box_index_compact(uint32_t space_id, uint32_t index_id)
 void
 iterator_create(struct iterator *it, struct index *index)
 {
+	it->next_raw = NULL;
 	it->next = NULL;
 	it->free = NULL;
 	it->space_cache_version = space_cache_version;
@@ -452,13 +453,18 @@ iterator_create(struct iterator *it, struct index *index)
 	it->index = index;
 }
 
-int
-iterator_next(struct iterator *it, struct tuple **ret)
+static inline int
+iterator_next_impl(struct iterator *it,
+		   int (*next)(struct iterator *it, struct tuple **ret),
+		   struct tuple **ret)
 {
 	assert(it->next != NULL);
-	/* In case of ephemeral space there is no need to check schema version */
+	/*
+	 * In case of ephemeral space there is no need to check schema
+	 * version.
+	 */
 	if (it->space_id == 0)
-		return it->next(it, ret);
+		return next(it, ret);
 	if (unlikely(it->space_cache_version != space_cache_version)) {
 		struct space *space = space_by_id(it->space_id);
 		if (space == NULL)
@@ -469,11 +475,23 @@ iterator_next(struct iterator *it, struct tuple **ret)
 			goto invalidate;
 		it->space_cache_version = space_cache_version;
 	}
-	return it->next(it, ret);
+	return next(it, ret);
 
 invalidate:
 	*ret = NULL;
 	return 0;
+}
+
+int
+iterator_next(struct iterator *it, struct tuple **ret)
+{
+	return iterator_next_impl(it, it->next, ret);
+}
+
+int
+iterator_next_raw(struct iterator *it, struct tuple **ret)
+{
+	return iterator_next_impl(it, it->next_raw, ret);
 }
 
 void
@@ -685,6 +703,17 @@ generic_index_count(struct index *index, enum iterator_type type,
 	if (rc < 0)
 		return rc;
 	return count;
+}
+
+int
+generic_index_get_raw(struct index *index, const char *key,
+		      uint32_t part_count, struct tuple **result)
+{
+	(void)key;
+	(void)part_count;
+	(void)result;
+	diag_set(UnsupportedIndexFeature, index->def, "get_raw()");
+	return -1;
 }
 
 int
