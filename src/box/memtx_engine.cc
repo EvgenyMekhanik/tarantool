@@ -53,6 +53,7 @@
 #include "txn_limbo.h"
 #include "memtx_allocator.h"
 #include "index.h"
+#include "memtx_tuple_compression.h"
 
 #include <type_traits>
 
@@ -79,6 +80,9 @@ void *
 (*memtx_alloc)(uint32_t size);
 void
 (*memtx_free)(void *ptr);
+struct tuple *
+(*memtx_tuple_new_raw)(struct tuple_format *format, const char *data,
+		       const char *end, bool validate);
 
 template <class ALLOC>
 static void *
@@ -102,11 +106,17 @@ memtx_free_impl(void *ptr)
 }
 
 template <class ALLOC>
+static inline struct tuple *
+memtx_tuple_new_raw_impl(struct tuple_format *format, const char *data,
+			 const char *end, bool validate);
+
+template <class ALLOC>
 static void
 memtx_alloc_init(void)
 {
 	memtx_alloc = memtx_alloc_impl<ALLOC>;
 	memtx_free = memtx_free_impl<ALLOC>;
+	memtx_tuple_new_raw = memtx_tuple_new_raw_impl<ALLOC>;
 }
 
 static int
@@ -150,7 +160,7 @@ memtx_build_secondary_index(struct index *index, struct index *pk)
 	int rc = 0;
 	while (true) {
 		struct tuple *tuple;
-		rc = iterator_next(it, &tuple);
+		rc = iterator_next_raw(it, &tuple);
 		if (rc != 0)
 			break;
 		if (tuple == NULL)
@@ -1218,6 +1228,20 @@ memtx_set_tuple_format_vtab(const char *allocator_name)
 	}
 }
 
+int
+memtx_tuple_validate(struct tuple_format *format, struct tuple *tuple)
+{
+	if (tuple_is_compressed(tuple)) {
+		tuple = memtx_tuple_decompress(tuple);
+		if (tuple == NULL)
+			return -1;
+	}
+	tuple_ref(tuple);
+	int rc = tuple_validate_raw(format, tuple_data(tuple));
+	tuple_unref(tuple);
+	return rc;
+}
+
 struct memtx_engine *
 memtx_engine_new(const char *snap_dirname, bool force_recovery,
 		 uint64_t tuple_arena_max_size, uint32_t objsize_min,
@@ -1382,8 +1406,9 @@ memtx_leave_delayed_free_mode(struct memtx_engine *memtx)
 }
 
 template<class ALLOC>
-struct tuple *
-memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
+static struct tuple *
+memtx_tuple_new_raw_impl(struct tuple_format *format, const char *data,
+			 const char *end, bool validate)
 {
 	struct memtx_engine *memtx = (struct memtx_engine *)format->engine;
 	assert(mp_typeof(*data) == MP_ARRAY);
@@ -1395,7 +1420,7 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 	uint32_t data_offset, field_map_size;
 	char *raw;
 	bool make_compact;
-	if (tuple_field_map_create(format, data, true, &builder) != 0)
+	if (tuple_field_map_create(format, data, validate, &builder) != 0)
 		goto end;
 	field_map_size = field_map_build_size(&builder);
 	/*
@@ -1451,6 +1476,13 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 end:
 	region_truncate(region, region_svp);
 	return tuple;
+}
+
+template<class ALLOC>
+static inline struct tuple *
+memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
+{
+	return memtx_tuple_new_raw_impl<ALLOC>(format, data, end, true);
 }
 
 template<class ALLOC>
@@ -1615,7 +1647,12 @@ memtx_index_def_change_requires_rebuild(struct index *index,
 int
 memtx_prepare_result_tuple(struct tuple **result)
 {
-	(void)result;
+	if (*result != NULL) {
+		*result = memtx_tuple_maybe_decompress(*result);
+		if (*result == NULL)
+			return -1;
+		tuple_bless(*result);
+	}
 	return 0;
 }
 
