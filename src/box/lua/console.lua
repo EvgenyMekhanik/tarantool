@@ -854,6 +854,34 @@ local function connect(uri, opts)
     return true
 end
 
+local function connect_console_raw(uri, opts)
+    opts = opts or {}
+
+    local u
+    if uri then
+        u = urilib.parse(tostring(uri))
+    end
+    if u == nil or u.service == nil then
+        error('Usage: console.connect("[login:password@][host:]port")')
+    end
+
+    local remote, err = connect_lua_console(u, opts.timeout)
+    if not remote then
+        log.verbose(err)
+        box.error(box.error.NO_CONNECTION)
+    end
+
+    -- check connection && permissions
+    local ok, res = pcall(remote.eval, remote, 'return true')
+    if not ok then
+        remote:close()
+        error(res)
+    end
+
+    log.info("connected to %s:%s", remote.host, remote.port)
+    return remote
+end
+
 local function client_handler(client, peer)
     session_internal.create(client:fd(), "console")
     session_internal.run_on_connect()
@@ -910,4 +938,5 @@ package.loaded['console'] = {
     on_start = on_start;
     on_client_disconnect = on_client_disconnect;
     completion_handler = internal.completion_handler;
+    connect_console_raw = connect_console_raw
 }
