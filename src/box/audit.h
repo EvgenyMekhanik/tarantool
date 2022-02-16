@@ -56,8 +56,18 @@ struct audit_on_select {
 extern "C" {
 #endif /* defined(__cplusplus) */
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+struct space;
+
+>>>>>>> a22e1ef95... cfg: implement ability to set audit log format
 int
 audit_log_init(const char *init_str, int log_nonblock);
+=======
+void
+audit_log_init(const char *init_str, int log_nonblock, const char *format);
+>>>>>>> a793950aa... cfg: implement ability to set audit log format
 
 static inline void
 audit_log_free(void) {}

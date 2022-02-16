@@ -1246,6 +1246,20 @@ box_check_txn_timeout(void)
 	return timeout;
 }
 
+static int
+box_check_audit_format(void)
+{
+	const char *format = cfg_gets("audit_format");
+	if (strcmp(format, "plain") != 0 && strcmp(format, "json") != 0 &&
+	    strcmp(format, "csv") != 0) {
+		diag_set(ClientError, ER_CFG, "audit_format",
+			 tt_sprintf("must be 'plain', 'json' or 'csv', "
+				    "but was set to '%s'", format));
+		return -1;
+	}
+	return 0;
+}
+
 void
 box_check_config(void)
 {
@@ -1292,6 +1306,8 @@ box_check_config(void)
 	if (box_check_sql_cache_size(cfg_geti("sql_cache_size")) != 0)
 		diag_raise();
 	if (box_check_txn_timeout() < 0)
+		diag_raise();
+	if (box_check_audit_format() < 0)
 		diag_raise();
 }
 
@@ -3779,6 +3795,12 @@ box_cfg_xc(void)
 	/* Follow replica */
 	replicaset_follow();
 
+<<<<<<< HEAD
+=======
+	audit_log_init(cfg_gets("audit_log"), cfg_geti("audit_nonblock"),
+		       cfg_gets("audit_format"));
+
+>>>>>>> a793950aa... cfg: implement ability to set audit log format
 	fiber_gc();
 	is_box_configured = true;
 	/*
