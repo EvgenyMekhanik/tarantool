@@ -39,6 +39,8 @@
 #include "rmean.h"
 #include "info/info.h"
 #include "memtx_tx.h"
+#include "port.h"
+#include "audit.h"
 
 /* {{{ Utilities. **********************************************/
 
@@ -178,6 +180,28 @@ check_index(uint32_t space_id, uint32_t index_id,
 	return 0;
 }
 
+static inline int
+index_run_on_select_triggers(struct space *space, struct tuple *result,
+			     enum LOG_CODE code)
+{
+	if (rlist_empty(&space->on_select))
+		return 0;
+	struct port port;
+	port_c_create(&port);
+	int rc;
+	if ((rc = port_c_add_tuple(&port, result)) != 0)
+		goto end;
+	struct audit_on_select on_select;
+	on_select.space = space;
+	on_select.port = &port;
+	on_select.code = code;
+	if ((rc = trigger_run(&space->on_select, &on_select)) != 0)
+		goto end;
+end:
+	port_destroy(&port);
+	return rc;
+}
+
 /* }}} */
 
 /* {{{ Public API */
@@ -216,6 +240,10 @@ box_index_random(uint32_t space_id, uint32_t index_id, uint32_t rnd,
 	/* No tx management, random() is for approximation anyway. */
 	if (index_random(index, rnd, result) != 0)
 		return -1;
+#if 0
+	if (index_run_on_select_triggers(space, *result, INDEX_RANDOM) != 0)
+		return -1;
+#endif
 	if (*result != NULL)
 		tuple_bless(*result);
 	return 0;
@@ -243,16 +271,19 @@ box_index_get(uint32_t space_id, uint32_t index_id, const char *key,
 	struct txn_ro_savepoint svp;
 	if (txn_begin_ro_stmt(space, &txn, &svp) != 0)
 		return -1;
-	if (index_get(index, key, part_count, result) != 0) {
-		txn_rollback_stmt(txn);
-		return -1;
-	}
+	if (index_get(index, key, part_count, result) != 0)
+		goto fail;
+	if (index_run_on_select_triggers(space, *result, SPACE_GET) != 0)
+		goto fail;
 	txn_commit_ro_stmt(txn, &svp);
 	/* Count statistics. */
 	rmean_collect(rmean_box, IPROTO_SELECT, 1);
 	if (*result != NULL)
 		tuple_bless(*result);
 	return 0;
+fail:
+	txn_rollback_stmt(txn);
+	return -1;
 }
 
 int
@@ -278,14 +309,19 @@ box_index_min(uint32_t space_id, uint32_t index_id, const char *key,
 	struct txn_ro_savepoint svp;
 	if (txn_begin_ro_stmt(space, &txn, &svp) != 0)
 		return -1;
-	if (index_min(index, key, part_count, result) != 0) {
-		txn_rollback_stmt(txn);
-		return -1;
-	}
+	if (index_min(index, key, part_count, result) != 0)
+		goto fail;
+#if 0
+	if (index_run_on_select_triggers(space, *result, INDEX_MIN) != 0)
+		goto fail;
+#endif
 	txn_commit_ro_stmt(txn, &svp);
 	if (*result != NULL)
 		tuple_bless(*result);
 	return 0;
+fail:
+	txn_rollback_stmt(txn);
+	return -1;
 }
 
 int
@@ -311,14 +347,19 @@ box_index_max(uint32_t space_id, uint32_t index_id, const char *key,
 	struct txn_ro_savepoint svp;
 	if (txn_begin_ro_stmt(space, &txn, &svp) != 0)
 		return -1;
-	if (index_max(index, key, part_count, result) != 0) {
-		txn_rollback_stmt(txn);
-		return -1;
-	}
+	if (index_max(index, key, part_count, result) != 0)
+		goto fail;
+#if 0
+	if (index_run_on_select_triggers(space, *result, INDEX_MIN) != 0)
+		goto fail;
+#endif
 	txn_commit_ro_stmt(txn, &svp);
 	if (*result != NULL)
 		tuple_bless(*result);
 	return 0;
+fail:
+	txn_rollback_stmt(txn);
+	return -1;
 }
 
 ssize_t

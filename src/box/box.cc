@@ -2382,6 +2382,11 @@ box_select(uint32_t space_id, uint32_t index_id,
 	}
 	iterator_delete(it);
 
+	if (!rlist_empty(&space->on_select)) {
+		struct audit_on_select on_select = {space, port, SPACE_SELECT};
+		rc = trigger_run(&space->on_select, &on_select);
+	}
+
 	if (rc != 0) {
 		port_destroy(port);
 		txn_rollback_stmt(txn);
@@ -3654,6 +3659,10 @@ box_cfg_xc(void)
 	rmean_box = rmean_new(iproto_type_strs, IPROTO_TYPE_STAT_MAX);
 	rmean_error = rmean_new(rmean_error_strings, RMEAN_ERROR_LAST);
 
+	if (audit_log_init(cfg_gets("audit_log"),
+			   cfg_geti("audit_nonblock")) != 0)
+		diag_raise();
+
 	gc_init();
 	engine_init();
 	schema_init();
@@ -3769,8 +3778,6 @@ box_cfg_xc(void)
 
 	/* Follow replica */
 	replicaset_follow();
-
-	audit_log_init(cfg_gets("audit_log"), cfg_geti("audit_nonblock"));
 
 	fiber_gc();
 	is_box_configured = true;

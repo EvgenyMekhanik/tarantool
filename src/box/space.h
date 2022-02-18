@@ -163,6 +163,11 @@ struct space {
 	struct rlist before_replace;
 	/** Triggers fired after space_replace() -- see txn_commit_stmt(). */
 	struct rlist on_replace;
+	/**
+	 * Triggers fired after getting data from space (select/get
+	 * and some index operations like min/max/random/pairs).
+	 */
+	struct rlist on_select;
 	/** SQL Trigger list. */
 	struct sql_trigger *sql_triggers;
 	/**
